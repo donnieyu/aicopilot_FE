@@ -9,32 +9,38 @@ import type { Activity } from '../../../types/workflow';
 const BaseNode = ({
                       children,
                       selected,
-                      className
+                      className,
+                      isTB
                   }: {
     children: React.ReactNode,
     selected?: boolean,
-    className?: string
+    className?: string,
+    isTB?: boolean
 }) => (
     <div className={clsx(
         "px-4 py-3 shadow-sm rounded-lg bg-white border-2 min-w-[150px] transition-all duration-200",
         selected ? "border-blue-500 ring-2 ring-blue-200" : "border-gray-200 hover:border-gray-300",
         className
     )}>
-        {/* [Fix] 입력 핸들: 왼쪽 */}
-        <Handle type="target" position={Position.Left} className="!bg-gray-400 !w-2 !h-2" />
+        {/* 입력 핸들: TB일 때 Top, LR일 때 Left */}
+        <Handle type="target" position={isTB ? Position.Top : Position.Left} className="!bg-gray-400 !w-2 !h-2" />
 
         {children}
 
-        {/* [Fix] 출력 핸들: 오른쪽 */}
-        <Handle type="source" position={Position.Right} className="!bg-gray-400 !w-2 !h-2" />
+        {/* 출력 핸들: TB일 때 Bottom, LR일 때 Right */}
+        <Handle type="source" position={isTB ? Position.Bottom : Position.Right} className="!bg-gray-400 !w-2 !h-2" />
     </div>
 );
 
 // 1. User Task Node
 export const UserTaskNode = memo(({ data, selected }: NodeProps<Activity>) => {
     const isApproval = data.configuration?.isApproval;
+    // data에 layoutDirection이 없을 경우 기본값 LR 사용 (TB일 때만 true)
+    // any 타입 캐스팅을 통해 layoutDirection 접근 (Activity 타입에 명시되지 않았을 수 있음)
+    const isTB = (data as any).layoutDirection === 'TB';
+
     return (
-        <BaseNode selected={selected} className="border-l-4 border-l-blue-500">
+        <BaseNode selected={selected} className="border-l-4 border-l-blue-500" isTB={isTB}>
             <div className="flex items-center gap-3">
                 <div className={clsx("p-1.5 rounded-lg", isApproval ? "bg-orange-100 text-orange-600" : "bg-blue-100 text-blue-600")}>
                     {isApproval ? <FileText size={16} /> : <User size={16} />}
@@ -52,8 +58,10 @@ export const UserTaskNode = memo(({ data, selected }: NodeProps<Activity>) => {
 export const ServiceTaskNode = memo(({ data, selected }: NodeProps<Activity>) => {
     const configType = data.configuration?.configType;
     const isEmail = configType === 'EMAIL_CONFIG';
+    const isTB = (data as any).layoutDirection === 'TB';
+
     return (
-        <BaseNode selected={selected} className="border-l-4 border-l-purple-500">
+        <BaseNode selected={selected} className="border-l-4 border-l-purple-500" isTB={isTB}>
             <div className="flex items-center gap-3">
                 <div className="p-1.5 rounded-lg bg-purple-100 text-purple-600">
                     {isEmail ? <Mail size={16} /> : <Server size={16} />}
@@ -68,17 +76,18 @@ export const ServiceTaskNode = memo(({ data, selected }: NodeProps<Activity>) =>
 
 // 3. Gateway Node
 export const GatewayNode = memo(({ data, selected }: NodeProps<Activity>) => {
+    const isTB = (data as any).layoutDirection === 'TB';
     return (
         <div className={clsx(
             "w-10 h-10 rotate-45 flex items-center justify-center bg-white border-2 shadow-sm transition-all",
             selected ? "border-green-500 ring-2 ring-green-200" : "border-gray-300"
         )}>
-            {/* [Fix] 핸들 좌/우 배치 */}
-            <Handle type="target" position={Position.Left} className="-rotate-45 !bg-gray-400 !w-2 !h-2" />
+            {/* 핸들 위치 동적 변경 */}
+            <Handle type="target" position={isTB ? Position.Top : Position.Left} className="-rotate-45 !bg-gray-400 !w-2 !h-2" />
             <div className="-rotate-45 text-green-600">
                 <GitFork size={16} />
             </div>
-            <Handle type="source" position={Position.Right} className="-rotate-45 !bg-gray-400 !w-2 !h-2" />
+            <Handle type="source" position={isTB ? Position.Bottom : Position.Right} className="-rotate-45 !bg-gray-400 !w-2 !h-2" />
 
             <div className="absolute -bottom-6 w-24 -rotate-45 text-center text-[10px] font-medium text-gray-500 whitespace-nowrap">
                 {data.label}
@@ -88,25 +97,27 @@ export const GatewayNode = memo(({ data, selected }: NodeProps<Activity>) => {
 });
 
 // 4. Start Node
-export const StartNode = memo(({ selected }: NodeProps) => {
+export const StartNode = memo(({ data, selected }: NodeProps) => {
+    const isTB = (data as any).layoutDirection === 'TB';
     return (
         <div className={clsx("flex flex-col items-center justify-center", selected && "opacity-80")}>
             <div className="w-10 h-10 rounded-full bg-green-100 border-2 border-green-500 flex items-center justify-center shadow-sm">
                 <Play size={20} className="text-green-600 fill-current ml-1" />
             </div>
             <span className="mt-1 text-xs font-bold text-gray-600">Start</span>
-            {/* [Fix] Source Right */}
-            <Handle type="source" position={Position.Right} className="!bg-green-500 !w-3 !h-3" />
+            {/* Source only */}
+            <Handle type="source" position={isTB ? Position.Bottom : Position.Right} className="!bg-green-500 !w-3 !h-3" />
         </div>
     );
 });
 
 // 5. End Node
-export const EndNode = memo(({ selected }: NodeProps) => {
+export const EndNode = memo(({ data, selected }: NodeProps) => {
+    const isTB = (data as any).layoutDirection === 'TB';
     return (
         <div className={clsx("flex flex-col items-center justify-center", selected && "opacity-80")}>
-            {/* [Fix] Target Left */}
-            <Handle type="target" position={Position.Left} className="!bg-red-500 !w-3 !h-3" />
+            {/* Target only */}
+            <Handle type="target" position={isTB ? Position.Top : Position.Left} className="!bg-red-500 !w-3 !h-3" />
             <div className="w-10 h-10 rounded-full bg-red-100 border-4 border-red-500 flex items-center justify-center shadow-sm">
                 <Square size={16} className="text-red-600 fill-current" />
             </div>

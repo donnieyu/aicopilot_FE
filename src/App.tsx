@@ -4,7 +4,7 @@ import { useWorkflowGenerator } from './hooks/useWorkflowGenerator';
 import { useWorkflowStore } from './store/useWorkflowStore';
 import { WorkflowCanvas } from './features/workflow/WorkflowCanvas';
 import { JsonInspector } from './components/JsonInspector';
-import { Loader2, CheckCircle, Wand2, Code, ArrowRight, ArrowDown } from 'lucide-react'; // 아이콘 추가
+import { Loader2, CheckCircle, Wand2, Code, ArrowRight, ArrowDown } from 'lucide-react';
 import clsx from 'clsx';
 
 function App() {
@@ -13,18 +13,23 @@ function App() {
 
     const { startJob, jobStatus, isStarting, isProcessing, isCompleted } = useWorkflowGenerator();
 
-    // [New] 레이아웃 관련 상태 가져오기
-    const { setProcess, layoutDirection, setLayoutDirection } = useWorkflowStore((state) => ({
-        setProcess: state.setProcess,
-        layoutDirection: state.layoutDirection,
-        setLayoutDirection: state.setLayoutDirection,
-    }));
+    // [Optimized] 상태 구독 최적화 (Shallow Comparison)
+    const setProcess = useWorkflowStore((state) => state.setProcess);
+    const layoutDirection = useWorkflowStore((state) => state.layoutDirection);
+    const setLayoutDirection = useWorkflowStore((state) => state.setLayoutDirection);
 
+    // [Fix] 무한 루프 방지: jobStatus.processResponse가 실제로 변경되었을 때만 호출
+    // JSON.stringify 비교는 무거울 수 있으므로, jobStatus.version이나 jobId 등을 키로 사용하는 것이 좋음.
+    // 여기서는 jobStatus가 변경될 때마다 체크하되, 내부적으로 이미 같은 프로세스라면 무시하도록
+    // useWorkflowStore의 setProcess에서 currentProcess 비교 로직을 넣는 것도 방법이지만,
+    // 간단하게 useEffect 의존성을 jobStatus.processResponse 로 한정.
     useEffect(() => {
         if (isCompleted && jobStatus?.processResponse) {
             setProcess(jobStatus.processResponse);
         }
-    }, [isCompleted, jobStatus, setProcess]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [isCompleted, jobStatus?.processResponse]);
+    // 주의: jobStatus 전체를 넣으면 폴링 때마다 계속 실행될 수 있음. processResponse 객체 참조 변경 시에만 실행.
 
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
@@ -47,7 +52,6 @@ function App() {
                     </div>
 
                     <div className="flex items-center gap-3">
-                        {/* [NEW] 레이아웃 토글 버튼 */}
                         <div className="flex items-center bg-gray-100 rounded-lg p-1 border border-gray-200">
                             <button
                                 onClick={() => setLayoutDirection('LR')}

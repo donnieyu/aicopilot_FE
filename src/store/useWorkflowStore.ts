@@ -73,7 +73,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
             initialNodes.push({
                 id: lane.swimlaneId,
                 type: 'SWIMLANE',
-                data: { label: lane.name },
+                data: { label: lane.name, layoutDirection: direction }, // [Fix] 방향 정보 주입
                 position: { x: 0, y: 0 },
                 selectable: false,
             });
@@ -87,7 +87,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
             activityNodes.push({
                 id: activity.id,
                 type: normalizedType,
-                data: { ...activity, type: normalizedType },
+                // [Fix] 커스텀 노드에서 핸들 위치를 결정할 수 있도록 layoutDirection 전달
+                data: { ...activity, type: normalizedType, layoutDirection: direction },
                 position: { x: 0, y: 0 },
             });
 
@@ -131,7 +132,11 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
             initialNodes.push({
                 id: startNodeId,
                 type: 'START',
-                data: { label: 'Start', swimlaneId: firstActivity.data.swimlaneId },
+                data: {
+                    label: 'Start',
+                    swimlaneId: firstActivity.data.swimlaneId,
+                    layoutDirection: direction // [Fix] 방향 정보 주입
+                },
                 position: { x: 0, y: 0 },
             });
 
@@ -155,7 +160,11 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
             initialNodes.push({
                 id: endNodeId,
                 type: 'END',
-                data: { label: 'End', swimlaneId: lastConnector?.swimlaneId },
+                data: {
+                    label: 'End',
+                    swimlaneId: lastConnector?.swimlaneId,
+                    layoutDirection: direction // [Fix] 방향 정보 주입
+                },
                 position: { x: 0, y: 0 },
             });
 
@@ -188,7 +197,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
             });
         }
 
-        // [5] 레이아웃 적용 (direction 전달)
+        // [5] 레이아웃 적용
         const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
             initialNodes,
             initialEdges,

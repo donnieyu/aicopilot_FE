@@ -44,6 +44,7 @@ export interface Activity {
     inputMapping?: Record<string, string>;
     position?: { x: number; y: number };
     nextActivityId?: string;
+    layoutDirection?: 'LR' | 'TB'; // 추가
 }
 
 /**
