@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { startProcessGeneration, getJobStatus } from '../api/workflow';
+import { startProcessGeneration, getJobStatus, suggestNextSteps } from '../api/workflow';
 
 export const useWorkflowGenerator = () => {
     const [jobId, setJobId] = useState<string | null>(null);
@@ -39,12 +39,23 @@ export const useWorkflowGenerator = () => {
     const isProcessing = jobStatus?.state === 'PENDING' || jobStatus?.state === 'PROCESSING';
     const isCompleted = jobStatus?.state === 'COMPLETED';
 
+    // [New] AI 제안 요청 상태
+    const { mutateAsync: getSuggestions, isPending: isSuggesting } = useMutation({
+        mutationFn: ({ graphJson, focusNodeId }: { graphJson: string, focusNodeId: string }) =>
+            suggestNextSteps(graphJson, focusNodeId),
+        onError: (error) => {
+            console.error('Failed to get suggestions:', error);
+        }
+    });
+
     return {
         startJob,        // 함수: 작업을 시작함
         jobStatus,       // 데이터: 현재 작업 상태 전체 (Process, Data, Form)
         isStarting,      // 상태: 시작 요청 중인지
         isProcessing,    // 상태: AI가 생성 중인지 (Polling 중)
         isCompleted,     // 상태: 완료되었는지
-        error: pollError // 에러 객체
+        error: pollError, // 에러 객체
+        getSuggestions, // 함수: 제안 요청
+        isSuggesting,   // 상태: 로딩 중
     };
 };

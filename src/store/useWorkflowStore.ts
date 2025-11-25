@@ -13,9 +13,9 @@ import type {
     OnConnect,
 } from 'reactflow';
 
-import type { ProcessResponse, NodeType } from '../types/workflow';
+import type { ProcessResponse, NodeType, NodeSuggestion } from '../types/workflow'; // NodeSuggestion 추가
 import { getLayoutedElements } from './layoutUtils';
-import type { LayoutDirection } from './layoutUtils'; // [Fix] 타입 import 분리
+import type { LayoutDirection } from './layoutUtils';
 
 interface WorkflowState {
     nodes: Node[];
@@ -28,8 +28,11 @@ interface WorkflowState {
     setProcess: (process: ProcessResponse) => void;
     setLayoutDirection: (direction: LayoutDirection) => void;
 
-    // [Fix] 인터페이스에 refreshLayout 추가 (에러 해결)
+    // [Fix] 인터페이스에 refreshLayout 추가
     refreshLayout: (process: ProcessResponse) => void;
+
+    // [New] 제안 적용 액션
+    applySuggestion: (suggestion: NodeSuggestion, sourceNodeId: string) => void;
 
     onNodesChange: OnNodesChange;
     onEdgesChange: OnEdgesChange;
@@ -37,182 +40,234 @@ interface WorkflowState {
     addNode: (node: Node) => void;
 }
 
-export const useWorkflowStore = create<WorkflowState>((set, get) => ({
-    nodes: [],
-    edges: [],
-    processMetadata: null,
-    layoutDirection: 'LR', // 기본값: 좌우
-    currentProcess: null,
+// [Helper] 프로세스 데이터를 기반으로 노드/엣지 생성 및 레이아웃 계산 함수
+const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) => {
+    const initialNodes: Node[] = [];
+    const initialEdges: Edge[] = [];
 
-    setProcess: (process: ProcessResponse) => {
-        // 원본 데이터 저장
-        set({ currentProcess: process });
+    // [1] Swimlane Node 생성
+    process.swimlanes.forEach((lane) => {
+        initialNodes.push({
+            id: lane.swimlaneId,
+            type: 'SWIMLANE',
+            data: { label: lane.name, layoutDirection: direction },
+            position: { x: 0, y: 0 },
+            selectable: false,
+        });
+    });
 
-        // 현재 레이아웃 설정으로 그래프 생성
-        get().refreshLayout(process);
-    },
+    // [2] Activity Node 생성
+    const activityNodes: Node[] = [];
+    process.activities.forEach((activity) => {
+        const normalizedType = activity.type.toUpperCase() as NodeType;
 
-    // 레이아웃 방향 변경
-    setLayoutDirection: (direction: LayoutDirection) => {
-        set({ layoutDirection: direction });
-        const currentProcess = get().currentProcess;
-        if (currentProcess) {
-            get().refreshLayout(currentProcess);
-        }
-    },
-
-    // 내부 헬퍼: 레이아웃 재계산
-    refreshLayout: (process: ProcessResponse) => {
-        const direction = get().layoutDirection;
-
-        const initialNodes: Node[] = [];
-        const initialEdges: Edge[] = [];
-
-        // [1] Swimlane Node 생성
-        process.swimlanes.forEach((lane) => {
-            initialNodes.push({
-                id: lane.swimlaneId,
-                type: 'SWIMLANE',
-                data: { label: lane.name, layoutDirection: direction }, // [Fix] 방향 정보 주입
-                position: { x: 0, y: 0 },
-                selectable: false,
-            });
+        activityNodes.push({
+            id: activity.id,
+            type: normalizedType,
+            data: { ...activity, type: normalizedType, layoutDirection: direction },
+            position: { x: 0, y: 0 },
         });
 
-        // [2] Activity Node 생성
-        const activityNodes: Node[] = [];
-        process.activities.forEach((activity) => {
-            const normalizedType = activity.type.toUpperCase() as NodeType;
-
-            activityNodes.push({
-                id: activity.id,
-                type: normalizedType,
-                // [Fix] 커스텀 노드에서 핸들 위치를 결정할 수 있도록 layoutDirection 전달
-                data: { ...activity, type: normalizedType, layoutDirection: direction },
-                position: { x: 0, y: 0 },
-            });
-
-            if (activity.nextActivityId && activity.nextActivityId !== 'node_end') {
-                initialEdges.push({
-                    id: `e-${activity.id}-${activity.nextActivityId}`,
-                    source: activity.id,
-                    target: activity.nextActivityId,
-                    type: 'smoothstep',
-                    animated: true,
-                    markerEnd: { type: MarkerType.ArrowClosed },
-                });
-            }
-
-            if (normalizedType === 'EXCLUSIVE_GATEWAY' && activity.configuration.conditions) {
-                activity.configuration.conditions.forEach((cond) => {
-                    if (cond.targetActivityId && cond.targetActivityId !== 'node_end') {
-                        initialEdges.push({
-                            id: `e-${activity.id}-${cond.targetActivityId}`,
-                            source: activity.id,
-                            target: cond.targetActivityId,
-                            type: 'smoothstep',
-                            label: cond.expression,
-                            animated: true,
-                            markerEnd: { type: MarkerType.ArrowClosed },
-                            style: { stroke: '#f59e0b', strokeWidth: 2 },
-                        });
-                    }
-                });
-            }
-        });
-
-        initialNodes.push(...activityNodes);
-
-        // [3] Start Node
-        if (activityNodes.length > 0) {
-            const targetIds = new Set(initialEdges.map(e => e.target));
-            const firstActivity = activityNodes.find(n => !targetIds.has(n.id)) || activityNodes[0];
-            const startNodeId = 'node_start';
-
-            initialNodes.push({
-                id: startNodeId,
-                type: 'START',
-                data: {
-                    label: 'Start',
-                    swimlaneId: firstActivity.data.swimlaneId,
-                    layoutDirection: direction // [Fix] 방향 정보 주입
-                },
-                position: { x: 0, y: 0 },
-            });
-
+        if (activity.nextActivityId && activity.nextActivityId !== 'node_end') {
             initialEdges.push({
-                id: `e-start-${firstActivity.id}`,
-                source: startNodeId,
-                target: firstActivity.id,
+                id: `e-${activity.id}-${activity.nextActivityId}`,
+                source: activity.id,
+                target: activity.nextActivityId,
                 type: 'smoothstep',
                 animated: true,
                 markerEnd: { type: MarkerType.ArrowClosed },
             });
         }
 
-        // [4] End Node
-        const endNodeId = 'node_end_point';
-        const explicitEndConnectors = process.activities.filter(a => a.nextActivityId === 'node_end' && a.type.toUpperCase() !== 'EXCLUSIVE_GATEWAY');
-        const gatewayConditionEndConnectors = process.activities.filter(a => a.type.toUpperCase() === 'EXCLUSIVE_GATEWAY' && a.configuration?.conditions?.some(c => c.targetActivityId === 'node_end'));
-
-        if (explicitEndConnectors.length > 0 || gatewayConditionEndConnectors.length > 0) {
-            const lastConnector = explicitEndConnectors[0] || gatewayConditionEndConnectors[0];
-            initialNodes.push({
-                id: endNodeId,
-                type: 'END',
-                data: {
-                    label: 'End',
-                    swimlaneId: lastConnector?.swimlaneId,
-                    layoutDirection: direction // [Fix] 방향 정보 주입
-                },
-                position: { x: 0, y: 0 },
-            });
-
-            explicitEndConnectors.forEach(sourceNode => {
-                initialEdges.push({
-                    id: `e-${sourceNode.id}-${endNodeId}`,
-                    source: sourceNode.id,
-                    target: endNodeId,
-                    type: 'smoothstep',
-                    animated: true,
-                    markerEnd: { type: MarkerType.ArrowClosed },
-                });
-            });
-
-            gatewayConditionEndConnectors.forEach(gateway => {
-                gateway.configuration.conditions?.forEach(cond => {
-                    if (cond.targetActivityId === 'node_end') {
-                        initialEdges.push({
-                            id: `e-${gateway.id}-${endNodeId}`,
-                            source: gateway.id,
-                            target: endNodeId,
-                            type: 'smoothstep',
-                            label: cond.expression,
-                            animated: true,
-                            markerEnd: { type: MarkerType.ArrowClosed },
-                            style: { stroke: '#f59e0b', strokeWidth: 2 },
-                        });
-                    }
-                });
+        if (normalizedType === 'EXCLUSIVE_GATEWAY' && activity.configuration.conditions) {
+            activity.configuration.conditions.forEach((cond) => {
+                if (cond.targetActivityId && cond.targetActivityId !== 'node_end') {
+                    initialEdges.push({
+                        id: `e-${activity.id}-${cond.targetActivityId}`,
+                        source: activity.id,
+                        target: cond.targetActivityId,
+                        type: 'smoothstep',
+                        label: cond.expression,
+                        animated: true,
+                        markerEnd: { type: MarkerType.ArrowClosed },
+                        style: { stroke: '#f59e0b', strokeWidth: 2 },
+                    });
+                }
             });
         }
+    });
 
-        // [5] 레이아웃 적용
-        const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
-            initialNodes,
-            initialEdges,
-            process.swimlanes,
-            direction
-        );
+    initialNodes.push(...activityNodes);
+
+    // [3] Start Node
+    if (activityNodes.length > 0) {
+        const targetIds = new Set(initialEdges.map(e => e.target));
+        const firstActivity = activityNodes.find(n => !targetIds.has(n.id)) || activityNodes[0];
+        const startNodeId = 'node_start';
+
+        initialNodes.push({
+            id: startNodeId,
+            type: 'START',
+            data: {
+                label: 'Start',
+                swimlaneId: firstActivity.data.swimlaneId,
+                layoutDirection: direction
+            },
+            position: { x: 0, y: 0 },
+        });
+
+        initialEdges.push({
+            id: `e-start-${firstActivity.id}`,
+            source: startNodeId,
+            target: firstActivity.id,
+            type: 'smoothstep',
+            animated: true,
+            markerEnd: { type: MarkerType.ArrowClosed },
+        });
+    }
+
+    // [4] End Node
+    const endNodeId = 'node_end_point';
+    const explicitEndConnectors = process.activities.filter(a => a.nextActivityId === 'node_end' && a.type.toUpperCase() !== 'EXCLUSIVE_GATEWAY');
+    const gatewayConditionEndConnectors = process.activities.filter(a => a.type.toUpperCase() === 'EXCLUSIVE_GATEWAY' && a.configuration?.conditions?.some(c => c.targetActivityId === 'node_end'));
+
+    if (explicitEndConnectors.length > 0 || gatewayConditionEndConnectors.length > 0) {
+        const lastConnector = explicitEndConnectors[0] || gatewayConditionEndConnectors[0];
+        initialNodes.push({
+            id: endNodeId,
+            type: 'END',
+            data: {
+                label: 'End',
+                swimlaneId: lastConnector?.swimlaneId,
+                layoutDirection: direction
+            },
+            position: { x: 0, y: 0 },
+        });
+
+        explicitEndConnectors.forEach(sourceNode => {
+            initialEdges.push({
+                id: `e-${sourceNode.id}-${endNodeId}`,
+                source: sourceNode.id,
+                target: endNodeId,
+                type: 'smoothstep',
+                animated: true,
+                markerEnd: { type: MarkerType.ArrowClosed },
+            });
+        });
+
+        gatewayConditionEndConnectors.forEach(gateway => {
+            gateway.configuration.conditions?.forEach(cond => {
+                if (cond.targetActivityId === 'node_end') {
+                    initialEdges.push({
+                        id: `e-${gateway.id}-${endNodeId}`,
+                        source: gateway.id,
+                        target: endNodeId,
+                        type: 'smoothstep',
+                        label: cond.expression,
+                        animated: true,
+                        markerEnd: { type: MarkerType.ArrowClosed },
+                        style: { stroke: '#f59e0b', strokeWidth: 2 },
+                    });
+                }
+            });
+        });
+    }
+
+    // [5] 레이아웃 적용
+    return getLayoutedElements(
+        initialNodes,
+        initialEdges,
+        process.swimlanes,
+        direction
+    );
+};
+
+export const useWorkflowStore = create<WorkflowState>((set, get) => ({
+    nodes: [],
+    edges: [],
+    processMetadata: null,
+    layoutDirection: 'LR',
+    currentProcess: null,
+
+    setProcess: (process: ProcessResponse) => {
+        const direction = get().layoutDirection;
+        const { nodes, edges } = calculateLayout(process, direction);
 
         set({
-            nodes: layoutedNodes,
-            edges: layoutedEdges,
+            currentProcess: process,
+            nodes,
+            edges,
             processMetadata: {
                 name: process.processName,
                 description: process.description,
             },
         });
+    },
+
+    setLayoutDirection: (direction: LayoutDirection) => {
+        const currentProcess = get().currentProcess;
+        if (currentProcess) {
+            const { nodes, edges } = calculateLayout(currentProcess, direction);
+            set({
+                layoutDirection: direction,
+                nodes,
+                edges
+            });
+        } else {
+            set({ layoutDirection: direction });
+        }
+    },
+
+    // 내부 헬퍼: 레이아웃 재계산 (인터페이스 구현)
+    refreshLayout: (process: ProcessResponse) => {
+        get().setProcess(process);
+    },
+
+    // [New] 제안 적용 로직
+    applySuggestion: (suggestion: NodeSuggestion, sourceNodeId: string) => {
+        const { nodes, layoutDirection } = get();
+
+        // 1. 새 노드 ID 생성
+        const newId = `node_${Date.now()}`;
+
+        // 2. 노드 데이터 구성
+        const newNodeData: any = {
+            id: newId,
+            type: suggestion.type,
+            label: suggestion.title,
+            description: suggestion.reason,
+            configuration: suggestion.configuration,
+            inputMapping: suggestion.inputMapping,
+            // 소스 노드의 스윔레인 상속
+            swimlaneId: nodes.find(n => n.id === sourceNodeId)?.data.swimlaneId,
+            layoutDirection: layoutDirection
+        };
+
+        // 3. 데이터 업데이트 (currentProcess)
+        const currentProcess = get().currentProcess;
+        if (currentProcess) {
+            const updatedActivities = [
+                ...currentProcess.activities,
+                { ...newNodeData } // Activity 타입 호환되도록 추가
+            ];
+
+            // 소스 노드의 nextActivityId 업데이트 (단순 연결)
+            // 실제로는 소스 노드를 찾아서 nextActivityId를 newId로 바꿔야 함
+            const updatedActivitiesWithLink = updatedActivities.map(activity => {
+                if (activity.id === sourceNodeId) {
+                    return { ...activity, nextActivityId: newId };
+                }
+                return activity;
+            });
+
+            const updatedProcess = {
+                ...currentProcess,
+                activities: updatedActivitiesWithLink
+            };
+
+            // 전체 갱신 (레이아웃 재계산 포함)
+            get().setProcess(updatedProcess);
+        }
     },
 
     onNodesChange: (changes) => {

@@ -1,9 +1,11 @@
+import { useCallback } from 'react';
 import ReactFlow, {
     Background,
     Controls,
     MiniMap,
 } from 'reactflow';
-import type { NodeTypes } from 'reactflow';
+// [Fix] Node는 타입이므로 import type으로 분리하여 가져옵니다.
+import type { Node, NodeTypes } from 'reactflow';
 import { useWorkflowStore } from '../../store/useWorkflowStore';
 import {
     UserTaskNode,
@@ -20,13 +22,24 @@ const nodeTypes: NodeTypes = {
     USER_TASK: UserTaskNode,
     SERVICE_TASK: ServiceTaskNode,
     EXCLUSIVE_GATEWAY: GatewayNode,
-    START: StartNode,       // [New]
-    END: EndNode,           // [New]
-    SWIMLANE: SwimlaneNode, // [New]
+    START: StartNode,
+    END: EndNode,
+    SWIMLANE: SwimlaneNode,
 };
 
-export const WorkflowCanvas = () => {
+interface WorkflowCanvasProps {
+    onNodeClick?: (event: React.MouseEvent, node: Node) => void;
+}
+
+export const WorkflowCanvas = ({ onNodeClick }: WorkflowCanvasProps) => {
     const { nodes, edges, onNodesChange, onEdgesChange, onConnect } = useWorkflowStore();
+
+    // 노드 클릭 핸들러
+    const handleNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
+        if (onNodeClick) {
+            onNodeClick(event, node);
+        }
+    }, [onNodeClick]);
 
     return (
         <div className="w-full h-full bg-white">
@@ -40,9 +53,9 @@ export const WorkflowCanvas = () => {
                 fitView
                 fitViewOptions={{ padding: 0.2 }}
                 attributionPosition="bottom-right"
-                // 노드 드래그 시 자석 효과 (Snap)
                 snapToGrid={true}
                 snapGrid={[15, 15]}
+                onNodeClick={handleNodeClick}
             >
                 <Background gap={20} size={1} color="#e2e8f0" />
                 <Controls />
