@@ -13,7 +13,7 @@ import type {
     OnConnect,
 } from 'reactflow';
 
-import type { ProcessResponse, NodeType, NodeSuggestion } from '../types/workflow'; // NodeSuggestion 추가
+import type { ProcessResponse, NodeType, NodeSuggestion, Activity } from '../types/workflow'; // [Check] Activity 확인
 import { getLayoutedElements } from './layoutUtils';
 import type { LayoutDirection } from './layoutUtils';
 
@@ -28,10 +28,8 @@ interface WorkflowState {
     setProcess: (process: ProcessResponse) => void;
     setLayoutDirection: (direction: LayoutDirection) => void;
 
-    // [Fix] 인터페이스에 refreshLayout 추가
     refreshLayout: (process: ProcessResponse) => void;
 
-    // [New] 제안 적용 액션
     applySuggestion: (suggestion: NodeSuggestion, sourceNodeId: string) => void;
 
     onNodesChange: OnNodesChange;
@@ -40,12 +38,11 @@ interface WorkflowState {
     addNode: (node: Node) => void;
 }
 
-// [Helper] 프로세스 데이터를 기반으로 노드/엣지 생성 및 레이아웃 계산 함수
+// [Helper] ... (calculateLayout 함수는 그대로 유지)
 const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) => {
     const initialNodes: Node[] = [];
     const initialEdges: Edge[] = [];
 
-    // [1] Swimlane Node 생성
     process.swimlanes.forEach((lane) => {
         initialNodes.push({
             id: lane.swimlaneId,
@@ -56,7 +53,6 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
         });
     });
 
-    // [2] Activity Node 생성
     const activityNodes: Node[] = [];
     process.activities.forEach((activity) => {
         const normalizedType = activity.type.toUpperCase() as NodeType;
@@ -99,7 +95,6 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
 
     initialNodes.push(...activityNodes);
 
-    // [3] Start Node
     if (activityNodes.length > 0) {
         const targetIds = new Set(initialEdges.map(e => e.target));
         const firstActivity = activityNodes.find(n => !targetIds.has(n.id)) || activityNodes[0];
@@ -126,7 +121,6 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
         });
     }
 
-    // [4] End Node
     const endNodeId = 'node_end_point';
     const explicitEndConnectors = process.activities.filter(a => a.nextActivityId === 'node_end' && a.type.toUpperCase() !== 'EXCLUSIVE_GATEWAY');
     const gatewayConditionEndConnectors = process.activities.filter(a => a.type.toUpperCase() === 'EXCLUSIVE_GATEWAY' && a.configuration?.conditions?.some(c => c.targetActivityId === 'node_end'));
@@ -173,7 +167,6 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
         });
     }
 
-    // [5] 레이아웃 적용
     return getLayoutedElements(
         initialNodes,
         initialEdges,
@@ -218,41 +211,45 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         }
     },
 
-    // 내부 헬퍼: 레이아웃 재계산 (인터페이스 구현)
     refreshLayout: (process: ProcessResponse) => {
         get().setProcess(process);
     },
 
-    // [New] 제안 적용 로직
     applySuggestion: (suggestion: NodeSuggestion, sourceNodeId: string) => {
         const { nodes, layoutDirection } = get();
 
-        // 1. 새 노드 ID 생성
         const newId = `node_${Date.now()}`;
 
-        // 2. 노드 데이터 구성
-        const newNodeData: any = {
+        // [Fix] any 타입 제거 및 안전한 접근
+        // 1. 소스 노드 찾기
+        const sourceNode = nodes.find(n => n.id === sourceNodeId);
+
+        // 2. 소스 노드의 data에서 swimlaneId 추출 (Activity 타입으로 단언)
+        // Node의 data는 제네릭이지만, 우리가 Activity 타입을 넣었으므로 단언 가능
+        const sourceSwimlaneId = sourceNode ? (sourceNode.data as Activity).swimlaneId : undefined;
+
+        // 3. Activity 타입으로 새 노드 데이터 생성
+        const newNodeData: Activity = {
             id: newId,
             type: suggestion.type,
             label: suggestion.title,
             description: suggestion.reason,
             configuration: suggestion.configuration,
             inputMapping: suggestion.inputMapping,
-            // 소스 노드의 스윔레인 상속
-            swimlaneId: nodes.find(n => n.id === sourceNodeId)?.data.swimlaneId,
-            layoutDirection: layoutDirection
+            swimlaneId: sourceSwimlaneId, // 추출한 ID 사용
+            layoutDirection: layoutDirection,
+            // Activity 인터페이스의 필수 필드들 (필요시 기본값 추가)
+            nextActivityId: undefined,
+            position: undefined
         };
 
-        // 3. 데이터 업데이트 (currentProcess)
         const currentProcess = get().currentProcess;
         if (currentProcess) {
             const updatedActivities = [
                 ...currentProcess.activities,
-                { ...newNodeData } // Activity 타입 호환되도록 추가
+                newNodeData
             ];
 
-            // 소스 노드의 nextActivityId 업데이트 (단순 연결)
-            // 실제로는 소스 노드를 찾아서 nextActivityId를 newId로 바꿔야 함
             const updatedActivitiesWithLink = updatedActivities.map(activity => {
                 if (activity.id === sourceNodeId) {
                     return { ...activity, nextActivityId: newId };
@@ -265,7 +262,6 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
                 activities: updatedActivitiesWithLink
             };
 
-            // 전체 갱신 (레이아웃 재계산 포함)
             get().setProcess(updatedProcess);
         }
     },

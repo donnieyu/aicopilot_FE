@@ -4,44 +4,37 @@ import { useWorkflowGenerator } from './hooks/useWorkflowGenerator';
 import { useWorkflowStore } from './store/useWorkflowStore';
 import { WorkflowCanvas } from './features/workflow/WorkflowCanvas';
 import { JsonInspector } from './components/JsonInspector';
-import { SuggestionPanel } from './features/workflow/components/SuggestionPanel'; // 추가됨
+import { SuggestionPanel } from './features/workflow/components/SuggestionPanel';
 import { Loader2, CheckCircle, Wand2, Code, ArrowRight, ArrowDown } from 'lucide-react';
 import clsx from 'clsx';
-import type { NodeSuggestion } from './types/workflow'; // 추가됨
-import type { Node } from 'reactflow'; // 추가됨
+import type { NodeSuggestion } from './types/workflow';
+import type { Node } from 'reactflow';
 
 function App() {
     const [prompt, setPrompt] = useState('');
     const [isInspectorOpen, setInspectorOpen] = useState(false);
 
-    // [New] 제안 관련 상태
     const [suggestions, setSuggestions] = useState<NodeSuggestion[]>([]);
     const [showSuggestionPanel, setShowSuggestionPanel] = useState(false);
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
     const {
         startJob, jobStatus, isStarting, isProcessing, isCompleted,
-        getSuggestions, isSuggesting // [New] 훅에서 가져옴
+        getSuggestions, isSuggesting
     } = useWorkflowGenerator();
 
-    // [New] 레이아웃 관련 상태 및 제안 적용 함수 가져오기
-    const {
-        setProcess, layoutDirection, setLayoutDirection, applySuggestion, // [New] applySuggestion 가져옴
-        nodes, edges // [New] 그래프 데이터 가져옴 (AI에게 보내기 위해)
-    } = useWorkflowStore((state) => ({
-        setProcess: state.setProcess,
-        layoutDirection: state.layoutDirection,
-        setLayoutDirection: state.setLayoutDirection,
-        applySuggestion: state.applySuggestion,
-        nodes: state.nodes,
-        edges: state.edges
-    }));
+    // [Fix] Zustand 구독 방식 변경: 객체 리터럴 반환 대신 개별 구독으로 변경하여 불필요한 리렌더링 및 무한 루프 방지
+    const setProcess = useWorkflowStore((state) => state.setProcess);
+    const layoutDirection = useWorkflowStore((state) => state.layoutDirection);
+    const setLayoutDirection = useWorkflowStore((state) => state.setLayoutDirection);
+    const applySuggestion = useWorkflowStore((state) => state.applySuggestion);
 
     useEffect(() => {
+        // jobStatus.processResponse 객체 참조가 변경될 때만 실행
         if (isCompleted && jobStatus?.processResponse) {
             setProcess(jobStatus.processResponse);
         }
-    }, [isCompleted, jobStatus, setProcess]);
+    }, [isCompleted, jobStatus?.processResponse, setProcess]);
 
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
@@ -49,9 +42,7 @@ function App() {
         startJob(prompt);
     };
 
-    // [New] 노드 클릭 핸들러
     const handleNodeClick = async (_event: React.MouseEvent, node: Node) => {
-        // 이미 선택된 노드면 패널만 토글하거나 닫음
         if (selectedNodeId === node.id && showSuggestionPanel) {
             setShowSuggestionPanel(false);
             return;
@@ -59,13 +50,31 @@ function App() {
 
         setSelectedNodeId(node.id);
         setShowSuggestionPanel(true);
-        setSuggestions([]); // 이전 제안 초기화
+        setSuggestions([]);
 
-        // 현재 그래프 상태를 JSON으로 변환
-        const graphContext = JSON.stringify({ nodes, edges });
+        // [Fix] getState()를 사용하여 구독 없이 현재 상태 가져오기
+        const { nodes, edges } = useWorkflowStore.getState();
+
+        // Payload 최적화
+        const simplifiedNodes = nodes.map(n => ({
+            id: n.id,
+            type: n.type,
+            data: {
+                label: n.data.label,
+                swimlaneId: n.data.swimlaneId,
+                configuration: n.data.configuration
+            }
+        }));
+
+        const simplifiedEdges = edges.map(e => ({
+            source: e.source,
+            target: e.target,
+            label: e.label
+        }));
+
+        const graphContext = JSON.stringify({ nodes: simplifiedNodes, edges: simplifiedEdges });
 
         try {
-            // AI에게 제안 요청
             const response = await getSuggestions({
                 graphJson: graphContext,
                 focusNodeId: node.id
@@ -75,15 +84,47 @@ function App() {
                 setSuggestions(response.suggestions);
             }
         } catch (e) {
-            console.error(e);
+            console.error("Suggestion API Error (Using Mock Data for Testing):", e);
+
+            // [TEST] API 에러 시 더미 데이터 제공하여 UI 테스트 가능하게 함
+            const mockSuggestions: NodeSuggestion[] = [
+                {
+                    title: "담당자 승인 단계 추가",
+                    reason: "비용 요청 제출 후에는 일반적으로 관리자의 승인이 필요합니다.",
+                    type: "USER_TASK",
+                    configuration: {
+                        configType: "USER_TASK_CONFIG",
+                        participantRole: "Manager",
+                        isApproval: true,
+                        formKey: "approval_form"
+                    },
+                    inputMapping: {
+                        "request_id": `{{ ${node.id}.id }}`,
+                        "amount": `{{ ${node.id}.amount }}`
+                    }
+                },
+                {
+                    title: "이메일 알림 발송",
+                    reason: "요청 접수 확인을 위해 신청자에게 이메일을 발송합니다.",
+                    type: "SERVICE_TASK",
+                    configuration: {
+                        configType: "EMAIL_CONFIG",
+                        templateId: "receipt_notification",
+                        subject: "요청이 접수되었습니다."
+                    },
+                    inputMapping: {
+                        "recipient": `{{ ${node.id}.applicant_email }}`
+                    }
+                }
+            ];
+            setSuggestions(mockSuggestions);
         }
     };
 
-    // [New] 제안 적용 핸들러
     const handleApplySuggestion = (suggestion: NodeSuggestion) => {
         if (selectedNodeId) {
             applySuggestion(suggestion, selectedNodeId);
-            setShowSuggestionPanel(false); // 적용 후 패널 닫기
+            setShowSuggestionPanel(false);
             setSuggestions([]);
         }
     };
@@ -103,7 +144,6 @@ function App() {
                     </div>
 
                     <div className="flex items-center gap-3">
-                        {/* 레이아웃 토글 버튼 */}
                         <div className="flex items-center bg-gray-100 rounded-lg p-1 border border-gray-200">
                             <button
                                 onClick={() => setLayoutDirection('LR')}
@@ -154,7 +194,6 @@ function App() {
                 </header>
 
                 <div className="flex-1 relative">
-                    {/* [New] 핸들러 전달 */}
                     <WorkflowCanvas onNodeClick={handleNodeClick} />
 
                     <JsonInspector
@@ -163,7 +202,6 @@ function App() {
                         data={jobStatus || null}
                     />
 
-                    {/* [NEW] AI 제안 패널 */}
                     {showSuggestionPanel && (
                         <SuggestionPanel
                             suggestions={suggestions}
