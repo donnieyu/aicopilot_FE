@@ -5,13 +5,12 @@ import { useWorkflowStore } from './store/useWorkflowStore';
 import { WorkflowCanvas } from './features/workflow/WorkflowCanvas';
 import { JsonInspector } from './components/JsonInspector';
 import { SuggestionPanel } from './features/workflow/components/SuggestionPanel';
-// [Fix] 경로 수정 (Alias 사용)
-import { OutlinerPanel } from '@/features/workflow/components/OutlinerPanel';
 // [Fix] 미사용 List 제거, LayoutList 사용 확인
 import { Wand2, Code, ArrowRight, ArrowDown, Sparkles, LayoutList } from 'lucide-react';
 import clsx from 'clsx';
 import type { NodeSuggestion } from './types/workflow';
 import type { Node } from 'reactflow';
+import {OutlinerPanel} from "./features/workflow/components/OutlinerPanel.tsx";
 
 function App() {
     const [prompt, setPrompt] = useState('');

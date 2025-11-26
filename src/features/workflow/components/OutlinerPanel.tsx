@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { X, ChevronRight, ChevronDown, User, Settings, GitFork } from 'lucide-react';
 import clsx from 'clsx';
-import type { ProcessResponse } from '@/types/workflow';
+import type {ProcessResponse} from "../../../types/workflow.ts";
 // [Fix] 미사용 import 제거
 // import { useWorkflowStore } from '@/store/useWorkflowStore';
 
