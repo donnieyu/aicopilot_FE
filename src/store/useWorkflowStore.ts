@@ -13,7 +13,7 @@ import type {
     OnConnect,
 } from 'reactflow';
 
-import type { ProcessResponse, NodeType, NodeSuggestion, Activity } from '../types/workflow';
+import type { ProcessResponse, NodeType, NodeSuggestion, Activity, NodeConfiguration } from '../types/workflow';
 import { getLayoutedElements } from './layoutUtils';
 import type { LayoutDirection } from './layoutUtils';
 
@@ -27,12 +27,11 @@ interface WorkflowState {
     // Actions
     setProcess: (process: ProcessResponse) => void;
     setLayoutDirection: (direction: LayoutDirection) => void;
-
-    // [Fix] 인터페이스에 refreshLayout 추가
     refreshLayout: (process: ProcessResponse) => void;
-
-    // [New] 제안 적용 액션
     applySuggestion: (suggestion: NodeSuggestion, sourceNodeId: string) => void;
+
+    // [New] 노드 설정 업데이트 액션
+    updateNodeConfiguration: (nodeId: string, newConfig: Partial<NodeConfiguration>) => void;
 
     onNodesChange: OnNodesChange;
     onEdgesChange: OnEdgesChange;
@@ -59,10 +58,6 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
     // [2] Activity Node 생성
     const activityNodes: Node[] = [];
     process.activities.forEach((activity) => {
-        // [Fix] activity.type이 null일 경우를 대비한 방어 로직
-        // 1. type이 있으면 사용
-        // 2. type이 없고 configType에 'GATEWAY'가 포함되면 EXCLUSIVE_GATEWAY로 추론
-        // 3. 그 외에는 기본값 USER_TASK 사용
         let typeStr = activity.type;
 
         if (!typeStr) {
@@ -145,14 +140,11 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
 
     // [4] End Node
     const endNodeId = 'node_end_point';
-    // [Fix] nextActivityId가 명시적으로 'node_end'이거나, 아예 없는 경우(마지막 단계)에도 End 노드와 연결하도록 수정
     const explicitEndConnectors = process.activities.filter(a =>
         (a.nextActivityId === 'node_end' || !a.nextActivityId) &&
-        // 타입 추론 로직 적용 후 비교
         (a.type || 'USER_TASK').toUpperCase() !== 'EXCLUSIVE_GATEWAY'
     );
 
-    // Gateway 타입 추론 적용
     const gatewayConditionEndConnectors = process.activities.filter(a => {
         const type = (a.type || (a.configuration?.configType?.includes('GATEWAY') ? 'EXCLUSIVE_GATEWAY' : 'USER_TASK')).toUpperCase();
         return type === 'EXCLUSIVE_GATEWAY' && a.configuration?.conditions?.some(c => c.targetActivityId === 'node_end');
@@ -253,7 +245,6 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         const { nodes, layoutDirection } = get();
 
         const newId = `node_${Date.now()}`;
-
         const sourceNode = nodes.find(n => n.id === sourceNodeId);
         const sourceSwimlaneId = sourceNode ? (sourceNode.data as Activity).swimlaneId : undefined;
 
@@ -291,6 +282,53 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
             get().setProcess(updatedProcess);
         }
+    },
+
+    // [New] 노드 설정 업데이트 구현
+    updateNodeConfiguration: (nodeId: string, newConfig: Partial<NodeConfiguration>) => {
+        const { nodes, currentProcess } = get();
+
+        // 1. ReactFlow Nodes 상태 업데이트 (화면 갱신용)
+        const updatedNodes = nodes.map((node) => {
+            if (node.id === nodeId) {
+                // 기존 data 구조를 유지하면서 configuration만 병합
+                const currentData = node.data;
+                const updatedConfig = { ...currentData.configuration, ...newConfig };
+
+                return {
+                    ...node,
+                    data: {
+                        ...currentData,
+                        configuration: updatedConfig,
+                    },
+                };
+            }
+            return node;
+        });
+
+        // 2. ProcessResponse 상태 업데이트 (데이터 무결성 유지)
+        let updatedProcess = currentProcess;
+        if (currentProcess) {
+            const updatedActivities = currentProcess.activities.map((activity) => {
+                if (activity.id === nodeId) {
+                    return {
+                        ...activity,
+                        configuration: { ...activity.configuration, ...newConfig },
+                    };
+                }
+                return activity;
+            });
+
+            updatedProcess = {
+                ...currentProcess,
+                activities: updatedActivities,
+            };
+        }
+
+        set({
+            nodes: updatedNodes,
+            currentProcess: updatedProcess,
+        });
     },
 
     onNodesChange: (changes) => {
