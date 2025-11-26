@@ -16,7 +16,8 @@ export function SuggestionPanel({ suggestions, onApply, onClose, isLoading }: Su
 
     if (isLoading) {
         return (
-            <div className="absolute bottom-6 right-6 w-80 bg-white rounded-xl shadow-xl border border-blue-100 p-4 animate-pulse">
+            // [Fix] z-index 추가 (z-50) 및 위치 조정
+            <div className="absolute bottom-6 right-6 w-80 bg-white rounded-xl shadow-xl border border-blue-100 p-4 animate-pulse z-50">
                 <div className="flex items-center gap-2 text-blue-600 mb-3">
                     <Lightbulb className="w-5 h-5 animate-bounce" />
                     <span className="font-semibold text-sm">AI가 분석 중입니다...</span>
@@ -32,7 +33,8 @@ export function SuggestionPanel({ suggestions, onApply, onClose, isLoading }: Su
     if (!suggestions || suggestions.length === 0) return null;
 
     return (
-        <div className="absolute bottom-6 right-6 w-96 bg-white rounded-xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-300">
+        // [Fix] z-index 추가 (z-50) 및 위치 조정
+        <div className="absolute bottom-6 right-6 w-96 bg-white rounded-xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-300 z-50">
             {/* Header */}
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 flex justify-between items-start border-b border-blue-100">
                 <div className="flex gap-2">

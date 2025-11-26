@@ -5,12 +5,12 @@ import { startProcessGeneration, getJobStatus, suggestNextSteps } from '../api/w
 export const useWorkflowGenerator = () => {
     const [jobId, setJobId] = useState<string | null>(null);
 
-    // 1. 작업 시작 (Trigger)
+    // 1. 작업 시작
     const { mutate: startJob, isPending: isStarting } = useMutation({
         mutationFn: startProcessGeneration,
         onSuccess: (data) => {
             console.log('Job Started:', data.jobId);
-            setJobId(data.jobId); // Job ID가 설정되면 폴링이 시작됨
+            setJobId(data.jobId);
         },
         onError: (error) => {
             console.error('Failed to start job:', error);
@@ -18,28 +18,25 @@ export const useWorkflowGenerator = () => {
         }
     });
 
-    // 2. 상태 폴링 (Smart Polling)
+    // 2. 상태 폴링
     const { data: jobStatus, error: pollError } = useQuery({
         queryKey: ['jobStatus', jobId],
         queryFn: () => getJobStatus(jobId!),
-        enabled: !!jobId, // jobId가 있을 때만 실행
+        enabled: !!jobId,
         refetchInterval: (query) => {
             const state = query.state.data?.state;
-
-            // 완료(COMPLETED)되거나 실패(FAILED)하면 폴링 중단 (false 반환)
             if (state === 'COMPLETED' || state === 'FAILED') {
                 return false;
             }
-            // 그 외(PENDING, PROCESSING)에는 1초마다 재요청
             return 1000;
         },
     });
 
-    // 3. UI 편의를 위한 상태 파생
+    // 3. 상태 파생
     const isProcessing = jobStatus?.state === 'PENDING' || jobStatus?.state === 'PROCESSING';
     const isCompleted = jobStatus?.state === 'COMPLETED';
 
-    // [New] AI 제안 요청 상태
+    // [New] AI 제안 요청
     const { mutateAsync: getSuggestions, isPending: isSuggesting } = useMutation({
         mutationFn: ({ graphJson, focusNodeId }: { graphJson: string, focusNodeId: string }) =>
             suggestNextSteps(graphJson, focusNodeId),
@@ -49,13 +46,13 @@ export const useWorkflowGenerator = () => {
     });
 
     return {
-        startJob,        // 함수: 작업을 시작함
-        jobStatus,       // 데이터: 현재 작업 상태 전체 (Process, Data, Form)
-        isStarting,      // 상태: 시작 요청 중인지
-        isProcessing,    // 상태: AI가 생성 중인지 (Polling 중)
-        isCompleted,     // 상태: 완료되었는지
-        error: pollError, // 에러 객체
-        getSuggestions, // 함수: 제안 요청
-        isSuggesting,   // 상태: 로딩 중
+        startJob,
+        jobStatus,
+        isStarting,
+        isProcessing,
+        isCompleted,
+        error: pollError,
+        getSuggestions,
+        isSuggesting,
     };
 };

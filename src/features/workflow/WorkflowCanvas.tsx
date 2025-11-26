@@ -4,8 +4,7 @@ import ReactFlow, {
     Controls,
     MiniMap,
 } from 'reactflow';
-// [Fix] Node는 타입이므로 import type으로 분리하여 가져옵니다.
-import type { Node, NodeTypes } from 'reactflow';
+import type { Node, NodeTypes } from 'reactflow'; // [Fix] import type 사용
 import { useWorkflowStore } from '../../store/useWorkflowStore';
 import {
     UserTaskNode,
@@ -17,7 +16,6 @@ import {
 } from './nodes/CustomNodes';
 import 'reactflow/dist/style.css';
 
-// 커스텀 노드 타입 매핑
 const nodeTypes: NodeTypes = {
     USER_TASK: UserTaskNode,
     SERVICE_TASK: ServiceTaskNode,
@@ -34,7 +32,6 @@ interface WorkflowCanvasProps {
 export const WorkflowCanvas = ({ onNodeClick }: WorkflowCanvasProps) => {
     const { nodes, edges, onNodesChange, onEdgesChange, onConnect } = useWorkflowStore();
 
-    // 노드 클릭 핸들러
     const handleNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
         if (onNodeClick) {
             onNodeClick(event, node);
