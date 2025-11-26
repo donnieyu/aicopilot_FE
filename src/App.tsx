@@ -1,12 +1,14 @@
 import { useEffect, useState, useRef } from 'react';
-import type { FormEvent } from 'react';
+import type { FormEvent, MouseEvent } from 'react';
 import { useWorkflowGenerator } from './hooks/useWorkflowGenerator';
 import { useWorkflowStore } from './store/useWorkflowStore';
 import { WorkflowCanvas } from './features/workflow/WorkflowCanvas';
 import { JsonInspector } from './components/JsonInspector';
 import { SuggestionPanel } from './features/workflow/components/SuggestionPanel';
-// [Fix] Send 제거, CheckCircle 추가
-import { Loader2, Wand2, Code, ArrowRight, ArrowDown, Sparkles, CheckCircle } from 'lucide-react';
+// [Fix] 경로 수정 (Alias 사용)
+import { OutlinerPanel } from '@/features/workflow/components/OutlinerPanel';
+// [Fix] 미사용 List 제거, LayoutList 사용 확인
+import { Wand2, Code, ArrowRight, ArrowDown, Sparkles, LayoutList } from 'lucide-react';
 import clsx from 'clsx';
 import type { NodeSuggestion } from './types/workflow';
 import type { Node } from 'reactflow';
@@ -14,6 +16,7 @@ import type { Node } from 'reactflow';
 function App() {
     const [prompt, setPrompt] = useState('');
     const [isInspectorOpen, setInspectorOpen] = useState(false);
+    const [isOutlinerOpen, setOutlinerOpen] = useState(false);
     const [hasStarted, setHasStarted] = useState(false);
 
     const [suggestions, setSuggestions] = useState<NodeSuggestion[]>([]);
@@ -21,8 +24,12 @@ function App() {
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
     const {
-        startJob, jobStatus, isCompleted, // [Fix] 미사용 변수(isStarting, isProcessing) 제거
-        getSuggestions, isSuggesting
+        startJob,
+        jobStatus,
+        isCompleted, // Header 프로그레스 바에서 사용됨
+        isProcessReady,
+        getSuggestions,
+        isSuggesting
     } = useWorkflowGenerator();
 
     const setProcess = useWorkflowStore((state) => state.setProcess);
@@ -33,10 +40,10 @@ function App() {
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        if (isCompleted && jobStatus?.processResponse) {
+        if (jobStatus?.processResponse) {
             setProcess(jobStatus.processResponse);
         }
-    }, [isCompleted, jobStatus?.processResponse, setProcess]);
+    }, [jobStatus?.processResponse, setProcess]);
 
     const handleSubmit = (e: FormEvent) => {
         e.preventDefault();
@@ -45,7 +52,7 @@ function App() {
         startJob(prompt);
     };
 
-    const handleNodeClick = async (_event: React.MouseEvent, node: Node) => {
+    const handleNodeClick = async (_event: MouseEvent, node: Node) => {
         if (selectedNodeId === node.id && showSuggestionPanel) {
             setShowSuggestionPanel(false);
             return;
@@ -66,23 +73,6 @@ function App() {
             if (response?.suggestions) setSuggestions(response.suggestions);
         } catch (e) {
             console.error(e);
-            const mockSuggestions: NodeSuggestion[] = [
-                {
-                    title: "담당자 승인 단계 추가",
-                    reason: "비용 요청 제출 후에는 일반적으로 관리자의 승인이 필요합니다.",
-                    type: "USER_TASK",
-                    configuration: { configType: "USER_TASK_CONFIG", participantRole: "Manager", isApproval: true, formKey: "approval_form" },
-                    inputMapping: { "request_id": `{{ ${node.id}.id }}`, "amount": `{{ ${node.id}.amount }}` }
-                },
-                {
-                    title: "이메일 알림 발송",
-                    reason: "요청 접수 확인을 위해 신청자에게 이메일을 발송합니다.",
-                    type: "SERVICE_TASK",
-                    configuration: { configType: "EMAIL_CONFIG", templateId: "receipt_notification", subject: "요청이 접수되었습니다." },
-                    inputMapping: { "recipient": `{{ ${node.id}.applicant_email }}` }
-                }
-            ];
-            setSuggestions(mockSuggestions);
         }
     };
 
@@ -94,7 +84,6 @@ function App() {
         }
     };
 
-    // [UX] 초기 화면 (Start Screen)
     if (!hasStarted) {
         return (
             <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white flex flex-col items-center justify-center p-6 transition-all duration-500">
@@ -147,10 +136,8 @@ function App() {
         );
     }
 
-    // [UX] 작업 화면 (Loading or Editor)
     return (
         <div className="flex flex-col h-screen overflow-hidden bg-slate-50 relative">
-            {/* Header (항상 표시) */}
             <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 shadow-sm z-20">
                 <div className="flex items-center gap-3">
                     <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-blue-200 shadow-lg">
@@ -158,26 +145,40 @@ function App() {
                     </div>
                     <div>
                         <h1 className="font-bold text-slate-800 text-sm leading-tight">
-                            {isCompleted ? (jobStatus?.processResponse?.processName || 'Untitled Process') : 'Designing Process...'}
+                            {jobStatus?.processResponse?.processName || 'Designing Process...'}
                         </h1>
-                        <p className="text-[10px] text-slate-400 font-medium">AI Architect Ver 5.2</p>
+                        <p className="text-[10px] text-slate-400 font-medium">AI Architect Ver 7.2</p>
                     </div>
                 </div>
 
                 <div className="flex items-center gap-3">
-                    {/* Loading Indicator in Header */}
+                    {/* Progress Indicator (Header) */}
                     {!isCompleted && (
-                        <div className="flex items-center gap-2 mr-4 px-3 py-1.5 bg-blue-50 text-blue-600 rounded-full text-xs font-semibold animate-pulse">
-                            <Loader2 size={14} className="animate-spin" />
-                            <span>
-                                {jobStatus?.stageDurations?.FORM ? 'Finalizing UX...' :
-                                    jobStatus?.stageDurations?.DATA ? 'Designing Forms...' :
-                                        jobStatus?.stageDurations?.PROCESS ? 'Modeling Data...' : 'Architecting Process...'}
-                            </span>
+                        <div className="flex items-center gap-3 mr-4 bg-slate-50 px-3 py-1.5 rounded-full border border-slate-100">
+                            <div className="flex items-center gap-1.5">
+                                <div className={clsx("w-2 h-2 rounded-full", jobStatus?.stageDurations?.PROCESS ? "bg-green-500" : "bg-blue-500 animate-pulse")} />
+                                <span className={clsx("text-[10px] font-bold", jobStatus?.stageDurations?.PROCESS ? "text-slate-500" : "text-blue-600")}>
+                                    Map
+                                </span>
+                            </div>
+                            <div className="w-px h-3 bg-slate-200" />
+                            <div className="flex items-center gap-1.5">
+                                <div className={clsx("w-2 h-2 rounded-full", !jobStatus?.stageDurations?.PROCESS ? "bg-slate-200" : jobStatus?.stageDurations?.DATA ? "bg-green-500" : "bg-blue-500 animate-pulse")} />
+                                <span className={clsx("text-[10px] font-bold", !jobStatus?.stageDurations?.PROCESS ? "text-slate-300" : jobStatus?.stageDurations?.DATA ? "text-slate-500" : "text-blue-600")}>
+                                    Data
+                                </span>
+                            </div>
+                            <div className="w-px h-3 bg-slate-200" />
+                            <div className="flex items-center gap-1.5">
+                                <div className={clsx("w-2 h-2 rounded-full", !jobStatus?.stageDurations?.DATA ? "bg-slate-200" : jobStatus?.stageDurations?.FORM ? "bg-green-500" : "bg-blue-500 animate-pulse")} />
+                                <span className={clsx("text-[10px] font-bold", !jobStatus?.stageDurations?.DATA ? "text-slate-300" : jobStatus?.stageDurations?.FORM ? "text-slate-500" : "text-blue-600")}>
+                                    Form
+                                </span>
+                            </div>
                         </div>
                     )}
 
-                    <div className="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200">
+                    <div className="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200 gap-1">
                         <button
                             onClick={() => setLayoutDirection('LR')}
                             className={clsx("flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all", layoutDirection === 'LR' ? "bg-white text-blue-600 shadow-sm" : "text-slate-500 hover:text-slate-700")}
@@ -190,8 +191,19 @@ function App() {
                         >
                             <ArrowDown size={14} /> TB
                         </button>
+                        <div className="w-px h-4 bg-slate-300 mx-1"></div>
+                        {/* Outliner Button */}
+                        <button
+                            onClick={() => setOutlinerOpen(!isOutlinerOpen)}
+                            className={clsx("flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all", isOutlinerOpen ? "bg-blue-100 text-blue-700 shadow-inner" : "text-slate-600 hover:bg-white hover:shadow-sm")}
+                            title="Toggle List View"
+                        >
+                            <LayoutList size={14} /> List
+                        </button>
                     </div>
+
                     <div className="h-5 w-px bg-slate-300 mx-1" />
+
                     <button
                         onClick={() => setInspectorOpen(true)}
                         className={clsx("flex items-center gap-2 text-xs font-bold px-3 py-1.5 border rounded-lg transition-colors", isInspectorOpen ? "bg-blue-50 text-blue-600 border-blue-200" : "text-slate-600 border-slate-200 hover:bg-slate-50")}
@@ -207,11 +219,10 @@ function App() {
                 </div>
             </header>
 
-            {/* Main Content Area */}
             <div className="flex-1 relative overflow-hidden">
-                {/* Loading Overlay (완료 전까지 캔버스 위를 덮음) */}
-                {!isCompleted && (
-                    <div className="absolute inset-0 z-10 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center">
+                {/* Initial Loading Overlay (Process 맵이 나오기 전까지만 표시) */}
+                {!isProcessReady && (
+                    <div className="absolute inset-0 z-10 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center animate-in fade-in duration-500">
                         <div className="text-center space-y-6 max-w-md">
                             <div className="relative w-24 h-24 mx-auto">
                                 <div className="absolute inset-0 border-4 border-blue-100 rounded-full"></div>
@@ -219,31 +230,29 @@ function App() {
                                 <Wand2 className="absolute inset-0 m-auto text-blue-600 w-8 h-8 animate-pulse" />
                             </div>
                             <div>
-                                <h2 className="text-xl font-bold text-slate-800 mb-2">AI가 프로세스를 설계 중입니다</h2>
+                                <h2 className="text-xl font-bold text-slate-800 mb-2">AI가 프로세스 구조를 설계 중입니다</h2>
                                 <p className="text-slate-500 text-sm">{prompt}</p>
-                            </div>
-                            {/* Progress Steps (Visual Only) */}
-                            <div className="flex justify-between w-full px-8 pt-4">
-                                <StepDot active={true} completed={!!jobStatus?.stageDurations?.PROCESS} label="Process" />
-                                <div className={clsx("flex-1 h-0.5 mt-2.5 mx-2 transition-colors duration-500", jobStatus?.stageDurations?.PROCESS ? "bg-blue-500" : "bg-slate-200")} />
-                                <StepDot active={!!jobStatus?.stageDurations?.PROCESS} completed={!!jobStatus?.stageDurations?.DATA} label="Data" />
-                                <div className={clsx("flex-1 h-0.5 mt-2.5 mx-2 transition-colors duration-500", jobStatus?.stageDurations?.DATA ? "bg-blue-500" : "bg-slate-200")} />
-                                <StepDot active={!!jobStatus?.stageDurations?.DATA} completed={!!jobStatus?.stageDurations?.FORM} label="Form" />
                             </div>
                         </div>
                     </div>
                 )}
 
-                {/* Canvas (항상 렌더링되지만 로딩 중에는 가려짐) */}
-                <div className={clsx("w-full h-full transition-opacity duration-700", isCompleted ? "opacity-100" : "opacity-0 scale-95")}>
+                {/* Canvas (데이터가 있으면 표시) */}
+                <div className={clsx("w-full h-full transition-opacity duration-700", isProcessReady ? "opacity-100" : "opacity-0 scale-95")}>
                     <WorkflowCanvas onNodeClick={handleNodeClick} />
                 </div>
 
-                {/* Side Panels */}
+                {/* Panels */}
                 <JsonInspector
                     isOpen={isInspectorOpen}
                     onClose={() => setInspectorOpen(false)}
                     data={jobStatus || null}
+                />
+
+                <OutlinerPanel
+                    isOpen={isOutlinerOpen}
+                    onClose={() => setOutlinerOpen(false)}
+                    process={jobStatus?.processResponse || null}
                 />
 
                 {showSuggestionPanel && (
@@ -255,24 +264,6 @@ function App() {
                     />
                 )}
             </div>
-        </div>
-    );
-}
-
-function StepDot({ active, completed, label }: { active: boolean, completed: boolean, label: string }) {
-    return (
-        <div className="flex flex-col items-center gap-2">
-            <div className={clsx(
-                "w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold transition-all duration-500",
-                completed ? "bg-blue-600 text-white scale-110" :
-                    active ? "bg-white border-2 border-blue-600 text-blue-600 animate-pulse" : "bg-slate-200 text-slate-400"
-            )}>
-                {/* [Check] CheckCircle이 import 되어 에러 해결됨 */}
-                {completed && <CheckCircle size={12} />}
-            </div>
-            <span className={clsx("text-xs font-medium transition-colors duration-300", active || completed ? "text-blue-600" : "text-slate-400")}>
-                {label}
-            </span>
         </div>
     );
 }

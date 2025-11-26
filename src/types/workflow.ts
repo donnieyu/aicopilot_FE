@@ -67,6 +67,23 @@ export interface ProcessResponse {
 }
 
 // ----------------------------------------------------------------------
+// [NEW] Process Definition Types (Mode B: Outliner)
+// ----------------------------------------------------------------------
+
+export interface ProcessStep {
+    stepId: string;
+    name: string;
+    role: string;
+    description: string;
+    type: 'ACTION' | 'DECISION';
+}
+
+export interface ProcessDefinition {
+    topic: string;
+    steps: ProcessStep[];
+}
+
+// ----------------------------------------------------------------------
 // [NEW] Data Entity Types (Replaces 'any' for dataEntitiesResponse)
 // ----------------------------------------------------------------------
 

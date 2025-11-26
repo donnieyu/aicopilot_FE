@@ -1,9 +1,9 @@
 import { client } from './client';
-import type { JobStatus, SuggestionResponse } from '../types/workflow';
+import type { JobStatus, SuggestionResponse, ProcessDefinition } from '../types/workflow';
 
 /**
- * 1. 프로세스 생성 요청 (POST /api/copilot/start)
- * 반환값: { jobId: string, message: string }
+ * 1. 프로세스 생성 요청 (Mode A: Quick Start)
+ * POST /api/copilot/start
  */
 export const startProcessGeneration = async (prompt: string) => {
     const { data } = await client.post<{ jobId: string; message: string }>(
@@ -14,8 +14,20 @@ export const startProcessGeneration = async (prompt: string) => {
 };
 
 /**
- * 2. 작업 상태 조회 (GET /api/copilot/status/{jobId})
- * 반환값: JobStatus (우리가 정의한 DTO)
+ * 1-2. 구조적 변환 요청 (Mode B: Transformation)
+ * POST /api/copilot/transform
+ */
+export const transformProcess = async (definition: ProcessDefinition) => {
+    const { data } = await client.post<{ jobId: string; message: string }>(
+        '/copilot/transform',
+        definition
+    );
+    return data;
+};
+
+/**
+ * 2. 작업 상태 조회 (Polling)
+ * GET /api/copilot/status/{jobId}
  */
 export const getJobStatus = async (jobId: string) => {
     const { data } = await client.get<JobStatus>(`/copilot/status/${jobId}`);
@@ -23,8 +35,8 @@ export const getJobStatus = async (jobId: string) => {
 };
 
 /**
- * 3. AI 제안 요청 (POST /api/copilot/suggest)
- * focusNodeId와 현재 그래프 상태를 보내 다음 행동을 추천받음
+ * 3. AI 제안 요청 (On-Demand)
+ * POST /api/copilot/suggest
  */
 export const suggestNextSteps = async (
     currentGraphJson: string,

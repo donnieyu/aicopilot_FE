@@ -59,7 +59,24 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
     // [2] Activity Node 생성
     const activityNodes: Node[] = [];
     process.activities.forEach((activity) => {
-        const normalizedType = activity.type.toUpperCase() as NodeType;
+        // [Fix] activity.type이 null일 경우를 대비한 방어 로직
+        // 1. type이 있으면 사용
+        // 2. type이 없고 configType에 'GATEWAY'가 포함되면 EXCLUSIVE_GATEWAY로 추론
+        // 3. 그 외에는 기본값 USER_TASK 사용
+        let typeStr = activity.type;
+
+        if (!typeStr) {
+            const configType = activity.configuration?.configType?.toUpperCase() || '';
+            if (configType.includes('GATEWAY')) {
+                typeStr = 'EXCLUSIVE_GATEWAY';
+            } else if (configType.includes('EMAIL') || configType.includes('SERVICE')) {
+                typeStr = 'SERVICE_TASK';
+            } else {
+                typeStr = 'USER_TASK';
+            }
+        }
+
+        const normalizedType = typeStr.toUpperCase() as NodeType;
 
         activityNodes.push({
             id: activity.id,
@@ -128,8 +145,18 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
 
     // [4] End Node
     const endNodeId = 'node_end_point';
-    const explicitEndConnectors = process.activities.filter(a => a.nextActivityId === 'node_end' && a.type.toUpperCase() !== 'EXCLUSIVE_GATEWAY');
-    const gatewayConditionEndConnectors = process.activities.filter(a => a.type.toUpperCase() === 'EXCLUSIVE_GATEWAY' && a.configuration?.conditions?.some(c => c.targetActivityId === 'node_end'));
+    // [Fix] nextActivityId가 명시적으로 'node_end'이거나, 아예 없는 경우(마지막 단계)에도 End 노드와 연결하도록 수정
+    const explicitEndConnectors = process.activities.filter(a =>
+        (a.nextActivityId === 'node_end' || !a.nextActivityId) &&
+        // 타입 추론 로직 적용 후 비교
+        (a.type || 'USER_TASK').toUpperCase() !== 'EXCLUSIVE_GATEWAY'
+    );
+
+    // Gateway 타입 추론 적용
+    const gatewayConditionEndConnectors = process.activities.filter(a => {
+        const type = (a.type || (a.configuration?.configType?.includes('GATEWAY') ? 'EXCLUSIVE_GATEWAY' : 'USER_TASK')).toUpperCase();
+        return type === 'EXCLUSIVE_GATEWAY' && a.configuration?.conditions?.some(c => c.targetActivityId === 'node_end');
+    });
 
     if (explicitEndConnectors.length > 0 || gatewayConditionEndConnectors.length > 0) {
         const lastConnector = explicitEndConnectors[0] || gatewayConditionEndConnectors[0];
@@ -228,10 +255,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         const newId = `node_${Date.now()}`;
 
         const sourceNode = nodes.find(n => n.id === sourceNodeId);
-        // [Fix] Activity 타입 단언으로 안전하게 접근
         const sourceSwimlaneId = sourceNode ? (sourceNode.data as Activity).swimlaneId : undefined;
 
-        // [Fix] any 대신 명확한 Activity 타입 사용
         const newNodeData: Activity = {
             id: newId,
             type: suggestion.type,
