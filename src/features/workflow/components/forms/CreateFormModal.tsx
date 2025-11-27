@@ -1,13 +1,11 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState } from 'react';
 import {
     X,
     Sparkles,
     PenTool,
     LayoutTemplate,
-    ArrowRight,
     Loader2,
     Link as LinkIcon,
-    AlertCircle,
     CheckCircle2,
     Plus,
     ArrowLeftRight,
@@ -17,9 +15,8 @@ import {
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useWorkflowStore } from '../../../../store/useWorkflowStore';
-import type { FormDefinitions, FormField, DataEntity, DataEntityType } from '../../../../types/workflow';
+import type { FormDefinitions, FormField, DataEntity, DataEntityType, FormFieldComponent } from '../../../../types/workflow';
 import { suggestFormDefinition } from '../../../../api/workflow';
-import { AxiosError } from 'axios';
 
 interface CreateFormModalProps {
     onClose: () => void;
@@ -50,24 +47,9 @@ export function CreateFormModal({ onClose }: CreateFormModalProps) {
         try {
             const form = await suggestFormDefinition(prompt);
             setGeneratedForm(form);
-        } catch (error: unknown) {
+        } catch (error) {
             console.error("Failed to generate form:", error);
-
-            let errorMsg = "Unknown error occurred.";
-
-            if (error instanceof AxiosError) {
-                if (error.code === 'ECONNABORTED') {
-                    errorMsg = "Generation timed out. Please try a simpler request.";
-                } else {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    const responseData = error.response?.data as any;
-                    errorMsg = responseData?.message || error.message || "Unknown error occurred.";
-                }
-            } else if (error instanceof Error) {
-                errorMsg = error.message;
-            }
-
-            alert(`Failed to generate form: ${errorMsg}`);
+            alert("Failed to generate form. Please try again.");
         } finally {
             setIsLoading(false);
         }
@@ -219,235 +201,255 @@ export function CreateFormModal({ onClose }: CreateFormModalProps) {
     );
 }
 
-// [Updated] 지능형 필드 연결 컴포넌트 with Inline Creation
+// [Helper] Map Form Component to Data Entity Type
+const mapComponentToDataType = (component: FormFieldComponent): DataEntityType => {
+    switch (component) {
+        case 'input_number': return 'number';
+        case 'checkbox':
+        case 'tri_state_checkbox': return 'boolean';
+        case 'date_picker':
+        case 'date_time_picker': return 'date';
+        case 'file_upload':
+        case 'file_list': return 'file';
+        case 'dropdown': return 'lookup';
+        case 'multiple_dropdown': return 'lookup_array';
+        default: return 'string';
+    }
+}
+
 function SmartFieldLinker({ field, dataEntities }: { field: FormField, dataEntities: DataEntity[] }) {
-    const addDataEntity = useWorkflowStore((state) => state.addDataEntity);
+    // 1. Exact Match Check
+    const exactMatch = dataEntities.find(e => e.alias === field.entityAlias);
 
-    // 1. Initial Match Logic
-    const exactMatch = useMemo(() =>
-            dataEntities.find(e => e.alias === field.entityAlias),
-        [dataEntities, field.entityAlias]);
+    // 2. Fuzzy Match Logic
+    const suggestedMatch = !exactMatch
+        ? dataEntities.find(e =>
+            e.alias.toLowerCase().includes(field.entityAlias.toLowerCase()) ||
+            field.entityAlias.toLowerCase().includes(e.alias.toLowerCase())
+        )
+        : undefined;
 
-    const suggestedMatch = useMemo(() =>
-            !exactMatch ? dataEntities.find(e =>
-                e.alias.toLowerCase().includes(field.entityAlias.toLowerCase()) ||
-                field.entityAlias.toLowerCase().includes(e.alias.toLowerCase())
-            ) : null,
-        [dataEntities, field.entityAlias, exactMatch]);
-
-    const [status, setStatus] = useState<'LINKED' | 'SUGGESTED' | 'NEW' | 'CREATING'>(
+    // --- State ---
+    const [status, setStatus] = useState<'LINKED' | 'SUGGESTED' | 'NEW'>(
         exactMatch ? 'LINKED' : suggestedMatch ? 'SUGGESTED' : 'NEW'
     );
     const [linkedEntity, setLinkedEntity] = useState<DataEntity | undefined>(exactMatch || suggestedMatch);
-    const [isSelecting, setIsSelecting] = useState(false);
 
-    // [New] Creation Form State
+    // [New] Interaction Mode State
+    const [mode, setMode] = useState<'VIEW' | 'SELECT' | 'CREATE'>('VIEW');
+
+    // [New] Create Form State
     const [newEntityAlias, setNewEntityAlias] = useState(field.entityAlias);
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const [newEntityLabel, setNewEntityLabel] = useState(field.label);
-    const [newEntityType, setNewEntityType] = useState<DataEntityType>('string'); // Default type
+    const [newEntityType, setNewEntityType] = useState<DataEntityType>(mapComponentToDataType(field.component));
 
-    // Handle Inline Creation
-    const handleCreateNew = () => {
+    const addDataEntity = useWorkflowStore((state) => state.addDataEntity);
+
+    // --- Handlers ---
+
+    // A. 기존 엔티티 선택 핸들러
+    const handleSelectExisting = (entity: DataEntity) => {
+        setLinkedEntity(entity);
+        setStatus('LINKED');
+        setMode('VIEW');
+    };
+
+    // B. 새 엔티티 생성 핸들러 (확정)
+    const handleConfirmCreate = () => {
+        if (!newEntityAlias) return;
+
         const newEntity: DataEntity = {
-            id: `entity_${Date.now()}`,
+            id: `entity_${newEntityAlias.toLowerCase()}_${Date.now()}`,
             alias: newEntityAlias,
-            label: newEntityLabel, // Use state instead of prop
+            label: field.label,
             type: newEntityType,
-            description: `Auto-generated for field: ${field.label}`,
+            description: `Auto-created from form field '${field.label}'`,
+            sourceNodeId: 'manual_creation',
             required: field.required,
             isPrimaryKey: false,
-            // Add other required fields with defaults
-            lookupData: { name: "", description: "", lookupItems: [] },
-            sourceNodeId: "manual_creation", // Placeholder
-            maxLength: 255,
-            pattern: "",
-            requireTrue: false
+            // Lookup 등 추가 데이터는 기본값 처리 (필요시 UI 확장 가능)
+            lookupData: newEntityType.includes('lookup') ? { name: 'New Lookup', lookupItems: [] } : undefined
         };
 
         addDataEntity(newEntity);
         setLinkedEntity(newEntity);
         setStatus('LINKED');
-        setIsSelecting(false); // Reset selection mode if active
+        setMode('VIEW');
     };
 
-    if (status === 'CREATING') {
-        return (
-            <div className="p-4 rounded-lg border border-blue-200 bg-blue-50/50 space-y-3 animate-in fade-in zoom-in-95 duration-200">
-                <div className="flex justify-between items-center">
-                    <h5 className="text-xs font-bold text-blue-700 uppercase tracking-wider flex items-center gap-1">
-                        <Plus size={12} /> Create New Data Entity
-                    </h5>
-                    <button onClick={() => setStatus('NEW')} className="text-slate-400 hover:text-slate-600">
-                        <X size={14} />
-                    </button>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                    <div>
-                        <label className="text-[10px] font-bold text-slate-500 mb-1 block">Entity Alias</label>
-                        <input
-                            type="text"
-                            className="w-full text-xs border border-slate-200 rounded px-2 py-1.5 focus:ring-1 focus:ring-blue-500"
-                            value={newEntityAlias}
-                            onChange={(e) => setNewEntityAlias(e.target.value)}
-                        />
-                    </div>
-                    <div>
-                        <label className="text-[10px] font-bold text-slate-500 mb-1 block">Data Type</label>
-                        <select
-                            className="w-full text-xs border border-slate-200 rounded px-2 py-1.5 focus:ring-1 focus:ring-blue-500 bg-white"
-                            value={newEntityType}
-                            onChange={(e) => setNewEntityType(e.target.value as DataEntityType)}
-                        >
-                            <option value="string">String</option>
-                            <option value="number">Number</option>
-                            <option value="date">Date</option>
-                            <option value="boolean">Boolean</option>
-                            <option value="file">File</option>
-                        </select>
-                    </div>
-                </div>
-
-                <div className="flex justify-end pt-1">
-                    <button
-                        onClick={handleCreateNew}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-bold rounded-lg shadow-sm hover:bg-blue-700 transition-all"
-                    >
-                        <Save size={12} /> Create & Link
-                    </button>
-                </div>
-            </div>
-        );
-    }
+    const handleAcceptSuggestion = () => {
+        if (linkedEntity) {
+            setStatus('LINKED');
+        }
+    };
 
     return (
         <div className={clsx(
-            "flex items-center justify-between p-3 rounded-lg border text-sm transition-all bg-white",
+            "rounded-lg border text-sm transition-all bg-white overflow-hidden",
             status === 'LINKED' ? "border-green-200 shadow-sm" :
                 status === 'SUGGESTED' ? "border-amber-200 ring-1 ring-amber-50" : "border-slate-200"
         )}>
-            {/* Field Info */}
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-                <div className={clsx(
-                    "p-1.5 rounded-full flex-shrink-0",
-                    status === 'LINKED' ? "bg-green-100 text-green-600" :
-                        status === 'SUGGESTED' ? "bg-amber-100 text-amber-600" : "bg-slate-100 text-slate-400"
-                )}>
-                    {status === 'LINKED' ? <CheckCircle2 size={14} /> :
-                        status === 'SUGGESTED' ? <ArrowLeftRight size={14} /> : <Plus size={14} />}
+            {/* Main Row */}
+            <div className="flex items-center justify-between p-3">
+                {/* Field Info (Left) */}
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className={clsx(
+                        "p-1.5 rounded-full flex-shrink-0",
+                        status === 'LINKED' ? "bg-green-100 text-green-600" :
+                            status === 'SUGGESTED' ? "bg-amber-100 text-amber-600" : "bg-slate-100 text-slate-400"
+                    )}>
+                        {status === 'LINKED' ? <CheckCircle2 size={14} /> :
+                            status === 'SUGGESTED' ? <ArrowLeftRight size={14} /> : <Plus size={14} />}
+                    </div>
+                    <div className="min-w-0">
+                        <p className="font-bold text-slate-700 text-xs truncate">{field.label}</p>
+                        <p className="text-[10px] text-slate-400 font-mono flex items-center gap-1 truncate">
+                            {field.entityAlias}
+                            <span className="bg-slate-100 px-1 rounded text-[9px]">{field.component}</span>
+                        </p>
+                    </div>
                 </div>
-                <div className="min-w-0">
-                    <p className="font-bold text-slate-700 text-xs truncate">{field.label}</p>
-                    <p className="text-[10px] text-slate-400 font-mono flex items-center gap-1">
-                        {field.entityAlias}
-                        <span className="bg-slate-100 px-1 rounded text-[9px]">{field.component}</span>
-                    </p>
+
+                {/* Action Area (Right) */}
+                <div className="flex items-center gap-2 pl-2">
+                    {/* CASE 1: Linked State (Show Badge) */}
+                    {status === 'LINKED' && linkedEntity && mode === 'VIEW' && (
+                        <div
+                            className="flex items-center gap-1.5 text-[10px] text-green-600 bg-green-50 px-2 py-1.5 rounded border border-green-100 cursor-pointer hover:bg-green-100 transition-colors"
+                            onClick={() => setMode('SELECT')} // 클릭 시 다시 선택 모드로
+                            title="Click to change"
+                        >
+                            <LinkIcon size={10} />
+                            <span className="font-mono max-w-[100px] truncate">{linkedEntity.alias}</span>
+                        </div>
+                    )}
+
+                    {/* CASE 2: Suggestion State (Show Accept Button) */}
+                    {status === 'SUGGESTED' && linkedEntity && mode === 'VIEW' && (
+                        <div className="flex items-center gap-2">
+                            <div className="flex flex-col items-end">
+                                <span className="text-[9px] text-amber-600 font-bold">Suggestion</span>
+                                <span className="text-[9px] text-slate-500 font-mono bg-slate-50 px-1 rounded border border-slate-100 max-w-[80px] truncate">
+                                    {linkedEntity.alias}
+                                </span>
+                            </div>
+                            <button
+                                onClick={handleAcceptSuggestion}
+                                className="p-1.5 bg-amber-100 text-amber-700 rounded-md hover:bg-amber-200 transition-colors"
+                                title="Accept Suggestion"
+                            >
+                                <CheckCircle2 size={14} />
+                            </button>
+                            <div className="h-4 w-px bg-slate-200 mx-1"></div>
+                            <button onClick={() => setMode('SELECT')} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded">
+                                <ChevronDown size={14} />
+                            </button>
+                        </div>
+                    )}
+
+                    {/* CASE 3: New/Unlinked or Edit Mode Buttons */}
+                    {(status === 'NEW' || mode !== 'VIEW') && mode !== 'CREATE' && (
+                        <div className="flex items-center gap-2">
+                            {/* Select Button */}
+                            <button
+                                onClick={() => setMode(mode === 'SELECT' ? 'VIEW' : 'SELECT')}
+                                className={clsx(
+                                    "flex items-center gap-1 text-[10px] px-2 py-1.5 rounded border transition-all",
+                                    mode === 'SELECT'
+                                        ? "bg-slate-100 text-slate-800 border-slate-300"
+                                        : "text-slate-500 hover:text-slate-700 hover:bg-slate-50 border-transparent hover:border-slate-200"
+                                )}
+                            >
+                                <Database size={10} />
+                                <span>Select</span>
+                            </button>
+
+                            <div className="h-4 w-px bg-slate-200"></div>
+
+                            {/* Create New Button */}
+                            <button
+                                onClick={() => setMode('CREATE')}
+                                className="flex items-center gap-1 text-[10px] text-blue-600 bg-blue-50 px-2 py-1.5 rounded border border-blue-100 hover:bg-blue-100 hover:border-blue-200 transition-all shadow-sm"
+                            >
+                                <Plus size={10} />
+                                <span>Create New</span>
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 
-            {/* Action Area */}
-            <div className="flex items-center gap-2">
-
-                {status === 'LINKED' && linkedEntity && (
-                    <div className="flex items-center gap-1">
-                        <div className="flex items-center gap-1.5 text-[10px] text-green-600 bg-green-50 px-2 py-1.5 rounded border border-green-100 max-w-[120px]">
-                            <LinkIcon size={10} className="flex-shrink-0" />
-                            <span className="font-mono truncate">{linkedEntity.alias}</span>
-                        </div>
-                        <button
-                            onClick={() => {
-                                setStatus('NEW');
-                                setLinkedEntity(undefined);
-                                setIsSelecting(false);
-                            }}
-                            className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded transition-colors"
-                            title="Disconnect and change"
-                        >
-                            <X size={14} />
-                        </button>
-                    </div>
-                )}
-
-                {status === 'SUGGESTED' && linkedEntity && (
-                    <div className="flex items-center gap-2">
-                        <div className="flex flex-col items-end">
-                            <span className="text-[9px] text-amber-600 font-bold">Suggestion</span>
-                            <span className="text-[9px] text-slate-500 font-mono bg-slate-50 px-1 rounded border border-slate-100 max-w-[100px] truncate">
-                                {linkedEntity.alias}
-                            </span>
-                        </div>
-                        <button
-                            onClick={() => setStatus('LINKED')}
-                            className="p-1.5 bg-amber-100 text-amber-700 rounded-md hover:bg-amber-200 transition-colors"
-                            title="Accept Suggestion"
-                        >
-                            <CheckCircle2 size={14} />
-                        </button>
-                        <button
-                            onClick={() => {
-                                setStatus('NEW');
-                                setLinkedEntity(undefined);
-                            }}
-                            className="p-1.5 text-slate-400 hover:bg-slate-100 rounded"
-                            title="Reject"
-                        >
-                            <X size={14} />
-                        </button>
-                    </div>
-                )}
-
-                {(status === 'NEW' || (status === 'SUGGESTED' && !linkedEntity)) && (
-                    <div className="flex items-center gap-2">
-                        {isSelecting ? (
-                            <div className="relative">
-                                <select
-                                    className="text-xs border border-blue-300 rounded px-2 py-1.5 pr-6 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500 w-[140px]"
-                                    onChange={(e) => {
-                                        const selected = dataEntities.find(ent => ent.id === e.target.value);
-                                        if (selected) {
-                                            setLinkedEntity(selected);
-                                            setStatus('LINKED');
-                                            setIsSelecting(false);
-                                        }
-                                    }}
-                                    defaultValue=""
-                                >
-                                    <option value="" disabled>Select Entity...</option>
-                                    {dataEntities.map(ent => (
-                                        <option key={ent.id} value={ent.id}>{ent.alias}</option>
-                                    ))}
-                                </select>
+            {/* Sub-Panel: Selection Mode */}
+            {mode === 'SELECT' && (
+                <div className="border-t border-slate-100 bg-slate-50 p-2 animate-in slide-in-from-top-1 fade-in duration-200">
+                    <div className="max-h-32 overflow-y-auto custom-scrollbar space-y-1">
+                        {dataEntities.length > 0 ? (
+                            dataEntities.map(entity => (
                                 <button
-                                    onClick={() => setIsSelecting(false)}
-                                    className="absolute -right-6 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600"
+                                    key={entity.id}
+                                    onClick={() => handleSelectExisting(entity)}
+                                    className="w-full flex items-center justify-between text-xs p-2 rounded hover:bg-white hover:shadow-sm hover:border-slate-200 border border-transparent transition-all group"
                                 >
-                                    <X size={14} />
+                                    <div className="flex items-center gap-2">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-slate-400 group-hover:bg-indigo-500"></div>
+                                        <span className="font-mono text-slate-600 group-hover:text-indigo-700">{entity.alias}</span>
+                                    </div>
+                                    <span className="text-[9px] text-slate-400 border border-slate-200 px-1 rounded bg-slate-100">{entity.type}</span>
                                 </button>
-                            </div>
+                            ))
                         ) : (
-                            <>
-                                <button
-                                    onClick={() => setIsSelecting(true)}
-                                    className="flex items-center gap-1 text-[10px] text-slate-500 hover:text-slate-700 hover:bg-slate-50 px-2 py-1.5 rounded border border-transparent hover:border-slate-200 transition-all"
-                                >
-                                    <Database size={10} />
-                                    <span>Select</span>
-                                </button>
-                                <div className="h-4 w-px bg-slate-200"></div>
-                                <button
-                                    onClick={() => setStatus('CREATING')} // [New] Switch to creation mode
-                                    className="flex items-center gap-1 text-[10px] text-blue-600 bg-blue-50 px-2 py-1.5 rounded border border-blue-100 hover:bg-blue-100 hover:border-blue-200 transition-all"
-                                    title="Will create a new entity"
-                                >
-                                    <Plus size={10} />
-                                    <span>Create New</span>
-                                </button>
-                            </>
+                            <p className="text-xs text-slate-400 text-center py-2">No existing entities found.</p>
                         )}
                     </div>
-                )}
-            </div>
+                </div>
+            )}
+
+            {/* Sub-Panel: Creation Mode */}
+            {mode === 'CREATE' && (
+                <div className="border-t border-slate-100 bg-blue-50/50 p-3 animate-in slide-in-from-top-1 fade-in duration-200">
+                    <div className="flex items-end gap-2">
+                        <div className="flex-1 space-y-1">
+                            <label className="text-[9px] font-bold text-slate-500 uppercase ml-1">Entity Alias</label>
+                            <input
+                                type="text"
+                                value={newEntityAlias}
+                                onChange={(e) => setNewEntityAlias(e.target.value)}
+                                className="w-full text-xs border border-slate-300 rounded px-2 py-1.5 focus:border-blue-500 focus:outline-none"
+                                placeholder="e.g. UserEmail"
+                            />
+                        </div>
+                        <div className="w-1/3 space-y-1">
+                            <label className="text-[9px] font-bold text-slate-500 uppercase ml-1">Type</label>
+                            <select
+                                value={newEntityType}
+                                onChange={(e) => setNewEntityType(e.target.value as DataEntityType)}
+                                className="w-full text-xs border border-slate-300 rounded px-2 py-1.5 focus:border-blue-500 focus:outline-none bg-white"
+                            >
+                                <option value="string">String</option>
+                                <option value="number">Number</option>
+                                <option value="boolean">Boolean</option>
+                                <option value="date">Date</option>
+                                <option value="file">File</option>
+                                <option value="lookup">Lookup</option>
+                            </select>
+                        </div>
+                        <button
+                            onClick={handleConfirmCreate}
+                            disabled={!newEntityAlias}
+                            className="bg-blue-600 text-white p-1.5 rounded hover:bg-blue-700 disabled:opacity-50 transition-colors h-[30px] flex items-center justify-center w-[30px]"
+                            title="Save Entity"
+                        >
+                            <Save size={14} />
+                        </button>
+                        <button
+                            onClick={() => setMode('VIEW')}
+                            className="bg-white border border-slate-300 text-slate-500 p-1.5 rounded hover:bg-slate-50 transition-colors h-[30px] flex items-center justify-center w-[30px]"
+                            title="Cancel"
+                        >
+                            <X size={14} />
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -45,9 +45,12 @@ interface WorkflowState {
     // Actions
     setProcess: (process: ProcessResponse) => void;
     setDataModel: (entities: DataEntity[], groups: DataEntitiesGroup[]) => void;
+
+    // [New] 단일 데이터 엔티티 추가 액션
+    addDataEntity: (entity: DataEntity) => void;
+
     setFormDefinitions: (forms: FormDefinitions[]) => void;
     addFormDefinition: (form: FormDefinitions) => void;
-    addDataEntity: (entity: DataEntity) => void; // [New] 엔티티 추가 액션
     setLayoutDirection: (direction: LayoutDirection) => void;
     refreshLayout: (process: ProcessResponse) => void;
     applySuggestion: (suggestion: NodeSuggestion, sourceNodeId: string) => void;
@@ -67,14 +70,12 @@ interface WorkflowState {
     addNode: (node: Node) => void;
 }
 
-// -----------------------------------------------------------------------------
-// [Core Logic] 프로세스 데이터 -> ReactFlow 요소 변환 및 레이아웃 계산
-// -----------------------------------------------------------------------------
+// ... (calculateLayout 함수는 기존과 동일하므로 생략하지 않고 유지해야 하지만, 파일 길이상 핵심 로직만 표시합니다)
 const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) => {
+    // 기존 calculateLayout 로직 전체 유지
     const initialNodes: Node[] = [];
     const initialEdges: Edge[] = [];
 
-    // 1. Swimlane Node 생성
     process.swimlanes.forEach((lane) => {
         initialNodes.push({
             id: lane.swimlaneId,
@@ -86,11 +87,9 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
         });
     });
 
-    // 2. Activity Node 생성 및 Edge 연결
     const activityNodes: Node[] = [];
     process.activities.forEach((activity) => {
         let typeStr = activity.type;
-
         if (!typeStr) {
             const configType = activity.configuration?.configType?.toUpperCase() || '';
             if (configType.includes('GATEWAY')) {
@@ -101,7 +100,6 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
                 typeStr = 'USER_TASK';
             }
         }
-
         const normalizedType = typeStr.toUpperCase() as NodeType;
 
         activityNodes.push({
@@ -146,7 +144,6 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
 
     initialNodes.push(...activityNodes);
 
-    // 3. Start Node 자동 생성 및 연결
     if (activityNodes.length > 0) {
         const targetIds = new Set(initialEdges.map(e => e.target));
         const firstActivity = activityNodes.find(n => !targetIds.has(n.id)) || activityNodes[0];
@@ -173,15 +170,11 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
         });
     }
 
-    // 4. End Node 자동 생성 및 연결
     const endNodeId = 'node_end_point';
-
-    // Gateway가 아니고, (명시적으로 node_end이거나 다음 단계가 없는 경우)만 End와 연결
     const explicitEndConnectors = process.activities.filter(a => {
         const type = (a.type || '').toUpperCase();
         const configType = (a.configuration?.configType || '').toUpperCase();
         const isGateway = type === 'EXCLUSIVE_GATEWAY' || configType.includes('GATEWAY');
-
         return !isGateway && (a.nextActivityId === 'node_end' || !a.nextActivityId);
     });
 
@@ -189,7 +182,6 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
         const type = (a.type || '').toUpperCase();
         const configType = (a.configuration?.configType || '').toUpperCase();
         const isGateway = type === 'EXCLUSIVE_GATEWAY' || configType.includes('GATEWAY');
-
         return isGateway && a.configuration?.conditions?.some(c => c.targetActivityId === 'node_end');
     });
 
@@ -235,7 +227,6 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
         });
     }
 
-    // 5. Layout Calculation (Dagre)
     return getLayoutedElements(
         initialNodes,
         initialEdges,
@@ -244,9 +235,6 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
     );
 };
 
-// -----------------------------------------------------------------------------
-// [Store Implementation]
-// -----------------------------------------------------------------------------
 export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     nodes: [],
     edges: [],
@@ -261,7 +249,6 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     analysisResults: {},
     selectedEdgeId: null,
 
-    // [Action] Reset: 모든 상태 초기화
     reset: () => set({
         nodes: [],
         edges: [],
@@ -276,7 +263,6 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
     setProcess: (process: ProcessResponse) => {
         const direction = get().layoutDirection;
-        // [Core Logic Call]
         const { nodes, edges } = calculateLayout(process, direction);
 
         set({
@@ -294,21 +280,53 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         set({ dataEntities: entities, dataGroups: groups });
     },
 
+    // [New] 구현: 엔티티를 추가하고, 'User Defined' 그룹에 할당합니다.
+    addDataEntity: (entity: DataEntity) => {
+        const { dataEntities, dataGroups } = get();
+
+        // 1. 이미 존재하는지 체크
+        if (dataEntities.some(e => e.id === entity.id || e.alias === entity.alias)) {
+            return; // 중복 방지
+        }
+
+        // 2. 새 엔티티 리스트 생성
+        const newEntities = [...dataEntities, entity];
+
+        // 3. 그룹 업데이트 (User Defined Variables 그룹이 없으면 생성)
+        // [Fix] prefer-const 에러 수정 (let -> const)
+        const targetGroupIndex = dataGroups.findIndex(g => g.id === 'group_user_defined');
+        const newGroups = [...dataGroups];
+
+        if (targetGroupIndex === -1) {
+            // 그룹이 없으면 새로 생성
+            const newGroup: DataEntitiesGroup = {
+                id: 'group_user_defined',
+                alias: 'UserDefined',
+                name: 'User Defined Variables',
+                description: 'Manually created variables.',
+                entityIds: [entity.id]
+            };
+            newGroups.push(newGroup);
+        } else {
+            // 그룹이 있으면 ID 추가
+            const targetGroup = { ...newGroups[targetGroupIndex] };
+            targetGroup.entityIds = [...targetGroup.entityIds, entity.id];
+            newGroups[targetGroupIndex] = targetGroup;
+        }
+
+        set({
+            dataEntities: newEntities,
+            dataGroups: newGroups
+        });
+    },
+
     setFormDefinitions: (forms: FormDefinitions[]) => {
         set({ formDefinitions: forms });
     },
 
-    // [Action] 폼 정의 추가 (Form List Panel용)
     addFormDefinition: (form: FormDefinitions) => {
         set((state) => ({
             formDefinitions: [...state.formDefinitions, form]
-        }));
-    },
-
-    // [Action] 데이터 엔티티 추가 (Create Form Modal용)
-    addDataEntity: (entity: DataEntity) => {
-        set((state) => ({
-            dataEntities: [...state.dataEntities, entity]
         }));
     },
 
@@ -442,7 +460,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
                 const targetActivityId = targetEdge.target;
 
-                const existingCondIndex = currentConditions.findIndex((c) => c.targetActivityId === targetActivityId);
+                // [Fix] TS7006: Parameter 'c' implicitly has an 'any' type. -> (c: any)
+                const existingCondIndex = currentConditions.findIndex((c: any) => c.targetActivityId === targetActivityId);
 
                 const newConditions = [...currentConditions];
                 if (existingCondIndex >= 0) {
