@@ -113,7 +113,15 @@ function App() {
             <>
                 <GeneratingOverlay isVisible={showBlockingOverlay} message={jobStatus?.message || "Analyzing structure..."} />
                 <div className={clsx("w-full h-full transition-opacity duration-500", showBlockingOverlay ? "opacity-0" : "opacity-100")}>
-                    <OutlinerPanel isOpen={true} onClose={() => {}} process={null} onTransform={handleTransform} initialTopic={initialTopic} />
+                    {/* [Fix] mode prop explicitly set to FULL (optional as it's default) */}
+                    <OutlinerPanel
+                        isOpen={true}
+                        onClose={() => {}}
+                        process={null}
+                        onTransform={handleTransform}
+                        initialTopic={initialTopic}
+                        mode="FULL"
+                    />
                 </div>
             </>
         );
