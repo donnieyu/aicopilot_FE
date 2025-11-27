@@ -43,11 +43,12 @@ export const suggestNextSteps = async (
     focusNodeId: string,
     jobId: string
 ) => {
-    const { data } = await client.post<SuggestionResponse>('/copilot/suggest/graph', {
-        currentGraphJson,
-        focusNodeId,
-        jobId,
-    });
+    // AI 추론은 시간이 걸릴 수 있으므로 30초 타임아웃 설정
+    const { data } = await client.post<SuggestionResponse>(
+        '/copilot/suggest/graph',
+        { currentGraphJson, focusNodeId, jobId },
+        { timeout: 30000 }
+    );
     return data;
 };
 
@@ -66,19 +67,18 @@ export const suggestProcessOutline = async (topic: string, description: string) 
 /**
  * 5. 단일 스텝 상세 제안 요청 (Micro-Assistant)
  * POST /api/copilot/suggest/step
- * [Updated] currentSteps: 전체 스텝 리스트를 보내어 문맥 파악 강화
  */
 export const suggestStepDetail = async (
     topic: string,
     context: string,
     stepIndex: number,
-    currentSteps: { name: string; role: string }[] // [Updated]
+    currentSteps: { name: string; role: string }[]
 ) => {
     const { data } = await client.post<ProcessStep>('/copilot/suggest/step', {
         topic,
         context,
         stepIndex,
-        currentSteps // [Updated]
+        currentSteps
     });
     return data;
 };
@@ -96,8 +96,13 @@ export const analyzeProcess = async (graphSnapshot: any) => {
 /**
  * 7. [New] 폼 생성 제안 요청
  * POST /api/copilot/suggest/form
+ * [Fix] AI 생성이 오래 걸릴 수 있으므로 타임아웃을 60초로 설정
  */
 export const suggestFormDefinition = async (prompt: string) => {
-    const { data } = await client.post<FormDefinitions>('/copilot/suggest/form', { prompt });
+    const { data } = await client.post<FormDefinitions>(
+        '/copilot/suggest/form',
+        { prompt },
+        { timeout: 60000 } // 60s Timeout Override
+    );
     return data;
 };
