@@ -4,7 +4,6 @@ import {
     applyNodeChanges,
     applyEdgeChanges,
     MarkerType,
-    // [Fix] Unused import 'Position' removed
 } from 'reactflow';
 import type {
     Node,
@@ -47,6 +46,7 @@ interface WorkflowState {
     setProcess: (process: ProcessResponse) => void;
     setDataModel: (entities: DataEntity[], groups: DataEntitiesGroup[]) => void;
     setFormDefinitions: (forms: FormDefinitions[]) => void;
+    addFormDefinition: (form: FormDefinitions) => void;
     setLayoutDirection: (direction: LayoutDirection) => void;
     refreshLayout: (process: ProcessResponse) => void;
     applySuggestion: (suggestion: NodeSuggestion, sourceNodeId: string) => void;
@@ -175,14 +175,21 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
     // 4. End Node 자동 생성 및 연결
     const endNodeId = 'node_end_point';
 
-    const explicitEndConnectors = process.activities.filter(a =>
-        (a.nextActivityId === 'node_end' || !a.nextActivityId) &&
-        (a.type !== 'EXCLUSIVE_GATEWAY')
-    );
+    // Gateway가 아니고, (명시적으로 node_end이거나 다음 단계가 없는 경우)만 End와 연결
+    const explicitEndConnectors = process.activities.filter(a => {
+        const type = (a.type || '').toUpperCase();
+        const configType = (a.configuration?.configType || '').toUpperCase();
+        const isGateway = type === 'EXCLUSIVE_GATEWAY' || configType.includes('GATEWAY');
+
+        return !isGateway && (a.nextActivityId === 'node_end' || !a.nextActivityId);
+    });
 
     const gatewayEndConnectors = process.activities.filter(a => {
-        const type = a.type || (a.configuration?.configType?.includes('GATEWAY') ? 'EXCLUSIVE_GATEWAY' : 'USER_TASK');
-        return type === 'EXCLUSIVE_GATEWAY' && a.configuration?.conditions?.some(c => c.targetActivityId === 'node_end');
+        const type = (a.type || '').toUpperCase();
+        const configType = (a.configuration?.configType || '').toUpperCase();
+        const isGateway = type === 'EXCLUSIVE_GATEWAY' || configType.includes('GATEWAY');
+
+        return isGateway && a.configuration?.conditions?.some(c => c.targetActivityId === 'node_end');
     });
 
     if (explicitEndConnectors.length > 0 || gatewayEndConnectors.length > 0) {
@@ -227,7 +234,7 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
         });
     }
 
-    // 5. Layout Calculation (Dagre)
+    // 5. Layout Calculation (Dagre) - [Fix] Correctly passing nodes and edges
     return getLayoutedElements(
         initialNodes,
         initialEdges,
@@ -267,6 +274,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
     setProcess: (process: ProcessResponse) => {
         const direction = get().layoutDirection;
+        // [Fix] Call calculateLayout to generate nodes and edges
         const { nodes, edges } = calculateLayout(process, direction);
 
         set({
@@ -286,6 +294,12 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
     setFormDefinitions: (forms: FormDefinitions[]) => {
         set({ formDefinitions: forms });
+    },
+
+    addFormDefinition: (form: FormDefinitions) => {
+        set((state) => ({
+            formDefinitions: [...state.formDefinitions, form]
+        }));
     },
 
     getAvailableVariables: (nodeId: string) => {
@@ -418,13 +432,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
                 const targetActivityId = targetEdge.target;
 
-                // [Fix] 타입스크립트 에러 해결: 'c' 파라미터에 명시적 타입 할당하지 않고, any 사용을 피하기 위해
-                // 제네릭이나 타입 추론이 잘 되도록 조건 검사 강화.
-                // Activity > NodeConfiguration > BranchCondition[] 구조임.
-
                 const existingCondIndex = currentConditions.findIndex((c) => c.targetActivityId === targetActivityId);
 
-                // [Fix] const 사용 (재할당 없음)
                 const newConditions = [...currentConditions];
                 if (existingCondIndex >= 0) {
                     newConditions[existingCondIndex] = { ...newConditions[existingCondIndex], expression: label };

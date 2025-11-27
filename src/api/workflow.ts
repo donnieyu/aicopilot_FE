@@ -1,5 +1,5 @@
 import { client } from './client';
-import type { JobStatus, SuggestionResponse, ProcessDefinition, ProcessStep, AnalysisResult } from '../types/workflow';
+import type { JobStatus, SuggestionResponse, ProcessDefinition, ProcessStep, AnalysisResult, FormDefinitions } from '../types/workflow';
 
 /**
  * 1. 프로세스 생성 요청 (Mode A: Quick Start)
@@ -90,5 +90,14 @@ export const suggestStepDetail = async (
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const analyzeProcess = async (graphSnapshot: any) => {
     const { data } = await client.post<AnalysisResult[]>('/copilot/analyze', graphSnapshot);
+    return data;
+};
+
+/**
+ * 7. [New] 폼 생성 제안 요청
+ * POST /api/copilot/suggest/form
+ */
+export const suggestFormDefinition = async (prompt: string) => {
+    const { data } = await client.post<FormDefinitions>('/copilot/suggest/form', { prompt });
     return data;
 };
