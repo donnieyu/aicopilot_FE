@@ -58,7 +58,7 @@ export function OutlinerPanel({ process, onTransform, initialTopic = '' }: Outli
     const [draftSteps, setDraftSteps] = useState<ProcessStep[]>([]);
 
     // Template Section Visibility
-    const [isTemplateExpanded, setTemplateExpanded] = useState(true);
+    const [isTemplateExpanded, setTemplateExpanded] = useState(false);
     const [selectedTemplate, setSelectedTemplate] = useState<{ label: string, desc: string } | null>(null);
 
     const [editingStepId, setEditingStepId] = useState<string | null>(null);
@@ -85,6 +85,7 @@ export function OutlinerPanel({ process, onTransform, initialTopic = '' }: Outli
             suggestProcessOutline(params.currentTopic, params.currentDesc),
         onSuccess: (data) => {
             setDraftSteps(data.steps);
+            setTemplateExpanded(false);
             setSelectedTemplate(null);
         }
     });
@@ -338,9 +339,9 @@ export function OutlinerPanel({ process, onTransform, initialTopic = '' }: Outli
                         {/* Vertical Connector Line */}
                         <div className="absolute top-12 bottom-12 left-1/2 w-0.5 bg-slate-200 -z-10 transform -translate-x-1/2 dashed-line"></div>
 
-                        {/* Empty State */}
+                        {/* Empty State / Add First Step Button */}
                         {draftSteps.length === 0 && !isSuggesting && (
-                            <div className="py-20 text-center w-full">
+                            <div className="py-20 text-center w-full relative z-10">
                                 <div className="inline-flex flex-col items-center justify-center p-10 border-2 border-dashed border-slate-200 rounded-3xl bg-white w-full max-w-md hover:border-blue-200 transition-colors">
                                     <div className="p-4 bg-slate-50 rounded-full mb-4">
                                         <Settings size={32} className="text-slate-300" />
