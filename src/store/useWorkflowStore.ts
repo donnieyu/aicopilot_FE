@@ -4,6 +4,7 @@ import {
     applyNodeChanges,
     applyEdgeChanges,
     MarkerType,
+    // [Fix] Unused import 'Position' removed
 } from 'reactflow';
 import type {
     Node,
@@ -13,7 +14,17 @@ import type {
     OnConnect,
 } from 'reactflow';
 
-import type { ProcessResponse, NodeType, NodeSuggestion, Activity, NodeConfiguration, DataEntity, AnalysisResult } from '../types/workflow';
+import type {
+    ProcessResponse,
+    NodeType,
+    NodeSuggestion,
+    Activity,
+    NodeConfiguration,
+    DataEntity,
+    AnalysisResult,
+    DataEntitiesGroup,
+    FormDefinitions
+} from '../types/workflow';
 import { getLayoutedElements } from './layoutUtils';
 import type { LayoutDirection } from './layoutUtils';
 import { getUpstreamNodeIds } from '../utils/graphUtils';
@@ -25,24 +36,29 @@ interface WorkflowState {
     layoutDirection: LayoutDirection;
     currentProcess: ProcessResponse | null;
 
-    // 데이터 엔티티 저장소 (Global Variable Pool)
     dataEntities: DataEntity[];
+    dataGroups: DataEntitiesGroup[];
+    formDefinitions: FormDefinitions[];
 
-    // [New] 노드별 분석 결과 맵 (Key: NodeId, Value: Result[])
     analysisResults: Record<string, AnalysisResult[]>;
+    selectedEdgeId: string | null;
 
     // Actions
     setProcess: (process: ProcessResponse) => void;
-    setDataEntities: (entities: DataEntity[]) => void;
+    setDataModel: (entities: DataEntity[], groups: DataEntitiesGroup[]) => void;
+    setFormDefinitions: (forms: FormDefinitions[]) => void;
     setLayoutDirection: (direction: LayoutDirection) => void;
     refreshLayout: (process: ProcessResponse) => void;
     applySuggestion: (suggestion: NodeSuggestion, sourceNodeId: string) => void;
     updateNodeConfiguration: (nodeId: string, newConfig: Partial<NodeConfiguration>) => void;
     getAvailableVariables: (nodeId: string) => DataEntity[];
 
-    // [New] 분석 결과 설정 Actions
+    setSelectedEdgeId: (id: string | null) => void;
+    updateEdgeLabel: (edgeId: string, label: string) => void;
     setAnalysisResults: (results: AnalysisResult[]) => void;
     clearAnalysisResults: () => void;
+
+    reset: () => void;
 
     onNodesChange: OnNodesChange;
     onEdgesChange: OnEdgesChange;
@@ -50,12 +66,14 @@ interface WorkflowState {
     addNode: (node: Node) => void;
 }
 
-// [Helper] 프로세스 데이터를 기반으로 노드/엣지 생성 및 레이아웃 계산 함수
+// -----------------------------------------------------------------------------
+// [Core Logic] 프로세스 데이터 -> ReactFlow 요소 변환 및 레이아웃 계산
+// -----------------------------------------------------------------------------
 const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) => {
     const initialNodes: Node[] = [];
     const initialEdges: Edge[] = [];
 
-    // [1] Swimlane Node 생성
+    // 1. Swimlane Node 생성
     process.swimlanes.forEach((lane) => {
         initialNodes.push({
             id: lane.swimlaneId,
@@ -63,10 +81,11 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
             data: { label: lane.name, layoutDirection: direction },
             position: { x: 0, y: 0 },
             selectable: false,
+            zIndex: -1,
         });
     });
 
-    // [2] Activity Node 생성
+    // 2. Activity Node 생성 및 Edge 연결
     const activityNodes: Node[] = [];
     process.activities.forEach((activity) => {
         let typeStr = activity.type;
@@ -87,7 +106,11 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
         activityNodes.push({
             id: activity.id,
             type: normalizedType,
-            data: { ...activity, type: normalizedType, layoutDirection: direction },
+            data: {
+                ...activity,
+                type: normalizedType,
+                layoutDirection: direction
+            },
             position: { x: 0, y: 0 },
         });
 
@@ -102,11 +125,11 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
             });
         }
 
-        if (normalizedType === 'EXCLUSIVE_GATEWAY' && activity.configuration.conditions) {
-            activity.configuration.conditions.forEach((cond) => {
+        if (normalizedType === 'EXCLUSIVE_GATEWAY' && activity.configuration?.conditions) {
+            activity.configuration.conditions.forEach((cond, idx) => {
                 if (cond.targetActivityId && cond.targetActivityId !== 'node_end') {
                     initialEdges.push({
-                        id: `e-${activity.id}-${cond.targetActivityId}`,
+                        id: `e-${activity.id}-${cond.targetActivityId}-${idx}`,
                         source: activity.id,
                         target: cond.targetActivityId,
                         type: 'smoothstep',
@@ -122,7 +145,7 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
 
     initialNodes.push(...activityNodes);
 
-    // [3] Start Node
+    // 3. Start Node 자동 생성 및 연결
     if (activityNodes.length > 0) {
         const targetIds = new Set(initialEdges.map(e => e.target));
         const firstActivity = activityNodes.find(n => !targetIds.has(n.id)) || activityNodes[0];
@@ -149,20 +172,21 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
         });
     }
 
-    // [4] End Node
+    // 4. End Node 자동 생성 및 연결
     const endNodeId = 'node_end_point';
+
     const explicitEndConnectors = process.activities.filter(a =>
         (a.nextActivityId === 'node_end' || !a.nextActivityId) &&
-        (a.type || 'USER_TASK').toUpperCase() !== 'EXCLUSIVE_GATEWAY'
+        (a.type !== 'EXCLUSIVE_GATEWAY')
     );
 
-    const gatewayConditionEndConnectors = process.activities.filter(a => {
-        const type = (a.type || (a.configuration?.configType?.includes('GATEWAY') ? 'EXCLUSIVE_GATEWAY' : 'USER_TASK')).toUpperCase();
+    const gatewayEndConnectors = process.activities.filter(a => {
+        const type = a.type || (a.configuration?.configType?.includes('GATEWAY') ? 'EXCLUSIVE_GATEWAY' : 'USER_TASK');
         return type === 'EXCLUSIVE_GATEWAY' && a.configuration?.conditions?.some(c => c.targetActivityId === 'node_end');
     });
 
-    if (explicitEndConnectors.length > 0 || gatewayConditionEndConnectors.length > 0) {
-        const lastConnector = explicitEndConnectors[0] || gatewayConditionEndConnectors[0];
+    if (explicitEndConnectors.length > 0 || gatewayEndConnectors.length > 0) {
+        const lastConnector = explicitEndConnectors[0] || gatewayEndConnectors[0];
         initialNodes.push({
             id: endNodeId,
             type: 'END',
@@ -185,11 +209,11 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
             });
         });
 
-        gatewayConditionEndConnectors.forEach(gateway => {
-            gateway.configuration.conditions?.forEach(cond => {
+        gatewayEndConnectors.forEach(gateway => {
+            gateway.configuration?.conditions?.forEach((cond, idx) => {
                 if (cond.targetActivityId === 'node_end') {
                     initialEdges.push({
-                        id: `e-${gateway.id}-${endNodeId}`,
+                        id: `e-${gateway.id}-${endNodeId}-${idx}`,
                         source: gateway.id,
                         target: endNodeId,
                         type: 'smoothstep',
@@ -203,7 +227,7 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
         });
     }
 
-    // [5] 레이아웃 적용
+    // 5. Layout Calculation (Dagre)
     return getLayoutedElements(
         initialNodes,
         initialEdges,
@@ -212,14 +236,34 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
     );
 };
 
+// -----------------------------------------------------------------------------
+// [Store Implementation]
+// -----------------------------------------------------------------------------
 export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     nodes: [],
     edges: [],
     processMetadata: null,
     layoutDirection: 'LR',
     currentProcess: null,
+
     dataEntities: [],
-    analysisResults: {}, // [New]
+    dataGroups: [],
+    formDefinitions: [],
+
+    analysisResults: {},
+    selectedEdgeId: null,
+
+    reset: () => set({
+        nodes: [],
+        edges: [],
+        processMetadata: null,
+        currentProcess: null,
+        dataEntities: [],
+        dataGroups: [],
+        formDefinitions: [],
+        analysisResults: {},
+        selectedEdgeId: null
+    }),
 
     setProcess: (process: ProcessResponse) => {
         const direction = get().layoutDirection;
@@ -231,13 +275,17 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
             edges,
             processMetadata: {
                 name: process.processName,
-                description: process.description,
-            },
+                description: process.description
+            }
         });
     },
 
-    setDataEntities: (entities: DataEntity[]) => {
-        set({ dataEntities: entities });
+    setDataModel: (entities: DataEntity[], groups: DataEntitiesGroup[]) => {
+        set({ dataEntities: entities, dataGroups: groups });
+    },
+
+    setFormDefinitions: (forms: FormDefinitions[]) => {
+        set({ formDefinitions: forms });
     },
 
     getAvailableVariables: (nodeId: string) => {
@@ -316,7 +364,6 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
             if (node.id === nodeId) {
                 const currentData = node.data;
                 const updatedConfig = { ...currentData.configuration, ...newConfig };
-
                 return {
                     ...node,
                     data: {
@@ -352,7 +399,46 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         });
     },
 
-    // [New] 분석 결과 저장 (Target ID 기준으로 그룹화)
+    setSelectedEdgeId: (id) => set({ selectedEdgeId: id }),
+
+    updateEdgeLabel: (edgeId, label) => {
+        const { edges, nodes } = get();
+
+        const updatedEdges = edges.map(edge =>
+            edge.id === edgeId ? { ...edge, label: label || undefined } : edge
+        );
+
+        const targetEdge = edges.find(e => e.id === edgeId);
+        if (targetEdge) {
+            const sourceNode = nodes.find(n => n.id === targetEdge.source);
+
+            if (sourceNode && (sourceNode.type === 'EXCLUSIVE_GATEWAY' || sourceNode.data.type === 'EXCLUSIVE_GATEWAY')) {
+                const currentConfig = sourceNode.data.configuration || {};
+                const currentConditions = currentConfig.conditions || [];
+
+                const targetActivityId = targetEdge.target;
+
+                // [Fix] 타입스크립트 에러 해결: 'c' 파라미터에 명시적 타입 할당하지 않고, any 사용을 피하기 위해
+                // 제네릭이나 타입 추론이 잘 되도록 조건 검사 강화.
+                // Activity > NodeConfiguration > BranchCondition[] 구조임.
+
+                const existingCondIndex = currentConditions.findIndex((c) => c.targetActivityId === targetActivityId);
+
+                // [Fix] const 사용 (재할당 없음)
+                const newConditions = [...currentConditions];
+                if (existingCondIndex >= 0) {
+                    newConditions[existingCondIndex] = { ...newConditions[existingCondIndex], expression: label };
+                } else {
+                    newConditions.push({ expression: label, targetActivityId });
+                }
+
+                get().updateNodeConfiguration(sourceNode.id, { conditions: newConditions });
+            }
+        }
+
+        set({ edges: updatedEdges });
+    },
+
     setAnalysisResults: (results: AnalysisResult[]) => {
         const grouped: Record<string, AnalysisResult[]> = {};
         results.forEach(item => {
