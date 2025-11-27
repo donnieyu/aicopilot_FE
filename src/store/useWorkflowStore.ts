@@ -47,6 +47,7 @@ interface WorkflowState {
     setDataModel: (entities: DataEntity[], groups: DataEntitiesGroup[]) => void;
     setFormDefinitions: (forms: FormDefinitions[]) => void;
     addFormDefinition: (form: FormDefinitions) => void;
+    addDataEntity: (entity: DataEntity) => void; // [New] 엔티티 추가 액션
     setLayoutDirection: (direction: LayoutDirection) => void;
     refreshLayout: (process: ProcessResponse) => void;
     applySuggestion: (suggestion: NodeSuggestion, sourceNodeId: string) => void;
@@ -234,7 +235,7 @@ const calculateLayout = (process: ProcessResponse, direction: LayoutDirection) =
         });
     }
 
-    // 5. Layout Calculation (Dagre) - [Fix] Correctly passing nodes and edges
+    // 5. Layout Calculation (Dagre)
     return getLayoutedElements(
         initialNodes,
         initialEdges,
@@ -260,6 +261,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     analysisResults: {},
     selectedEdgeId: null,
 
+    // [Action] Reset: 모든 상태 초기화
     reset: () => set({
         nodes: [],
         edges: [],
@@ -274,7 +276,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
 
     setProcess: (process: ProcessResponse) => {
         const direction = get().layoutDirection;
-        // [Fix] Call calculateLayout to generate nodes and edges
+        // [Core Logic Call]
         const { nodes, edges } = calculateLayout(process, direction);
 
         set({
@@ -296,9 +298,17 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         set({ formDefinitions: forms });
     },
 
+    // [Action] 폼 정의 추가 (Form List Panel용)
     addFormDefinition: (form: FormDefinitions) => {
         set((state) => ({
             formDefinitions: [...state.formDefinitions, form]
+        }));
+    },
+
+    // [Action] 데이터 엔티티 추가 (Create Form Modal용)
+    addDataEntity: (entity: DataEntity) => {
+        set((state) => ({
+            dataEntities: [...state.dataEntities, entity]
         }));
     },
 
