@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { startProcessGeneration, transformProcess, getJobStatus, suggestNextSteps } from '../api/workflow';
-// [Fix] 사용하지 않는 ProcessDefinition import 제거
 
 export const useWorkflowGenerator = () => {
     const [jobId, setJobId] = useState<string | null>(null);
@@ -53,10 +52,10 @@ export const useWorkflowGenerator = () => {
     // [Optimistic UI] 프로세스 맵이 준비되었는지 여부 (완료 전이라도 true일 수 있음)
     const isProcessReady = !!jobStatus?.processResponse;
 
-    // [New] AI 제안 요청
+    // [New] AI 제안 요청 (Smart Binding 지원)
     const { mutateAsync: getSuggestions, isPending: isSuggesting } = useMutation({
-        mutationFn: ({ graphJson, focusNodeId }: { graphJson: string, focusNodeId: string }) =>
-            suggestNextSteps(graphJson, focusNodeId),
+        mutationFn: ({ graphJson, focusNodeId, jobId }: { graphJson: string, focusNodeId: string, jobId: string }) =>
+            suggestNextSteps(graphJson, focusNodeId, jobId),
         onError: (error) => {
             console.error('Failed to get suggestions:', error);
         }
@@ -64,13 +63,14 @@ export const useWorkflowGenerator = () => {
 
     return {
         startJob,
-        startTransformation, // New
+        startTransformation,
         jobStatus,
+        currentJobId: jobId, // [New] App.tsx에서 참조하기 쉽게 export
         isStarting,
-        isTransforming, // New
+        isTransforming,
         isProcessing,
         isCompleted,
-        isProcessReady, // New
+        isProcessReady,
         error: pollError,
         getSuggestions,
         isSuggesting,

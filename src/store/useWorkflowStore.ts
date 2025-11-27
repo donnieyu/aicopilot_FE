@@ -13,9 +13,10 @@ import type {
     OnConnect,
 } from 'reactflow';
 
-import type { ProcessResponse, NodeType, NodeSuggestion, Activity, NodeConfiguration } from '../types/workflow';
+import type { ProcessResponse, NodeType, NodeSuggestion, Activity, NodeConfiguration, DataEntity } from '../types/workflow';
 import { getLayoutedElements } from './layoutUtils';
 import type { LayoutDirection } from './layoutUtils';
+import { getUpstreamNodeIds } from '../utils/graphUtils'; // [New] Graph Utils Import
 
 interface WorkflowState {
     nodes: Node[];
@@ -24,14 +25,24 @@ interface WorkflowState {
     layoutDirection: LayoutDirection;
     currentProcess: ProcessResponse | null;
 
+    // [New] 데이터 엔티티 저장소 (Global Variable Pool)
+    dataEntities: DataEntity[];
+
     // Actions
     setProcess: (process: ProcessResponse) => void;
+
+    // [New] 데이터 엔티티 설정 액션
+    setDataEntities: (entities: DataEntity[]) => void;
+
     setLayoutDirection: (direction: LayoutDirection) => void;
     refreshLayout: (process: ProcessResponse) => void;
     applySuggestion: (suggestion: NodeSuggestion, sourceNodeId: string) => void;
 
     // [New] 노드 설정 업데이트 액션
     updateNodeConfiguration: (nodeId: string, newConfig: Partial<NodeConfiguration>) => void;
+
+    // [New] 특정 노드 시점에서 사용 가능한 변수 조회 (Smart Binding 핵심)
+    getAvailableVariables: (nodeId: string) => DataEntity[];
 
     onNodesChange: OnNodesChange;
     onEdgesChange: OnEdgesChange;
@@ -207,6 +218,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     processMetadata: null,
     layoutDirection: 'LR',
     currentProcess: null,
+    dataEntities: [], // [New] 초기값
 
     setProcess: (process: ProcessResponse) => {
         const direction = get().layoutDirection;
@@ -221,6 +233,25 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
                 description: process.description,
             },
         });
+    },
+
+    // [New] 데이터 엔티티 업데이트 구현
+    setDataEntities: (entities: DataEntity[]) => {
+        set({ dataEntities: entities });
+    },
+
+    // [New] Smart Binding 로직 구현
+    getAvailableVariables: (nodeId: string) => {
+        const { edges, dataEntities } = get();
+
+        // 1. 현재 노드의 상위 노드 ID들을 모두 찾음 (Data Lineage)
+        const upstreamNodeIds = getUpstreamNodeIds(nodeId, edges);
+
+        // 2. 전체 변수 풀(dataEntities) 중에서, sourceNodeId가 상위 노드 목록에 있는 것만 필터링
+        //    (즉, 이 시점에서 이미 생성되어 존재하는 데이터만 리턴)
+        return dataEntities.filter(entity =>
+            entity.sourceNodeId && upstreamNodeIds.has(entity.sourceNodeId)
+        );
     },
 
     setLayoutDirection: (direction: LayoutDirection) => {
