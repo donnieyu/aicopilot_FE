@@ -1,5 +1,5 @@
 import { client } from './client';
-import type { JobStatus, SuggestionResponse, ProcessDefinition, ProcessStep } from '../types/workflow';
+import type { JobStatus, SuggestionResponse, ProcessDefinition, ProcessStep, AnalysisResult } from '../types/workflow';
 
 /**
  * 1. 프로세스 생성 요청 (Mode A: Quick Start)
@@ -80,5 +80,15 @@ export const suggestStepDetail = async (
         stepIndex,
         currentSteps // [Updated]
     });
+    return data;
+};
+
+/**
+ * 6. [Shadow Architect] 구조 분석 요청
+ * POST /api/copilot/analyze
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const analyzeProcess = async (graphSnapshot: any) => {
+    const { data } = await client.post<AnalysisResult[]>('/copilot/analyze', graphSnapshot);
     return data;
 };

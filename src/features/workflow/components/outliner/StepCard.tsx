@@ -9,7 +9,8 @@ interface StepCardProps {
     isEditing: boolean;
     tempStep: Partial<ProcessStep>;
     onEditStart: () => void;
-    onEditChange: (field: keyof ProcessStep, value: any) => void;
+    // [Fix] any 타입을 구체적인 ProcessStep 값 타입으로 변경
+    onEditChange: (field: keyof ProcessStep, value: ProcessStep[keyof ProcessStep]) => void;
     onSave: () => void;
     onCancel: () => void;
     onDelete: () => void;
@@ -30,7 +31,8 @@ const getIcon = (type: string) => {
 export function StepCard({
                              step, index, isEditing, tempStep,
                              onEditStart, onEditChange, onSave, onCancel, onDelete,
-                             onAddBefore, onAddAfter, isLast,
+                             onAddBefore, onAddAfter,
+                             // [Fix] 사용하지 않는 isLast 파라미터 제거 (Props 인터페이스에는 유지하여 부모 호환성 보장)
                              onAutoFill, isStepSuggesting
                          }: StepCardProps) {
 

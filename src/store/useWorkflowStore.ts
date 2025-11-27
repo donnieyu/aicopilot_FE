@@ -13,10 +13,10 @@ import type {
     OnConnect,
 } from 'reactflow';
 
-import type { ProcessResponse, NodeType, NodeSuggestion, Activity, NodeConfiguration, DataEntity } from '../types/workflow';
+import type { ProcessResponse, NodeType, NodeSuggestion, Activity, NodeConfiguration, DataEntity, AnalysisResult } from '../types/workflow';
 import { getLayoutedElements } from './layoutUtils';
 import type { LayoutDirection } from './layoutUtils';
-import { getUpstreamNodeIds } from '../utils/graphUtils'; // [New] Graph Utils Import
+import { getUpstreamNodeIds } from '../utils/graphUtils';
 
 interface WorkflowState {
     nodes: Node[];
@@ -25,24 +25,24 @@ interface WorkflowState {
     layoutDirection: LayoutDirection;
     currentProcess: ProcessResponse | null;
 
-    // [New] 데이터 엔티티 저장소 (Global Variable Pool)
+    // 데이터 엔티티 저장소 (Global Variable Pool)
     dataEntities: DataEntity[];
+
+    // [New] 노드별 분석 결과 맵 (Key: NodeId, Value: Result[])
+    analysisResults: Record<string, AnalysisResult[]>;
 
     // Actions
     setProcess: (process: ProcessResponse) => void;
-
-    // [New] 데이터 엔티티 설정 액션
     setDataEntities: (entities: DataEntity[]) => void;
-
     setLayoutDirection: (direction: LayoutDirection) => void;
     refreshLayout: (process: ProcessResponse) => void;
     applySuggestion: (suggestion: NodeSuggestion, sourceNodeId: string) => void;
-
-    // [New] 노드 설정 업데이트 액션
     updateNodeConfiguration: (nodeId: string, newConfig: Partial<NodeConfiguration>) => void;
-
-    // [New] 특정 노드 시점에서 사용 가능한 변수 조회 (Smart Binding 핵심)
     getAvailableVariables: (nodeId: string) => DataEntity[];
+
+    // [New] 분석 결과 설정 Actions
+    setAnalysisResults: (results: AnalysisResult[]) => void;
+    clearAnalysisResults: () => void;
 
     onNodesChange: OnNodesChange;
     onEdgesChange: OnEdgesChange;
@@ -218,7 +218,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     processMetadata: null,
     layoutDirection: 'LR',
     currentProcess: null,
-    dataEntities: [], // [New] 초기값
+    dataEntities: [],
+    analysisResults: {}, // [New]
 
     setProcess: (process: ProcessResponse) => {
         const direction = get().layoutDirection;
@@ -235,20 +236,13 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         });
     },
 
-    // [New] 데이터 엔티티 업데이트 구현
     setDataEntities: (entities: DataEntity[]) => {
         set({ dataEntities: entities });
     },
 
-    // [New] Smart Binding 로직 구현
     getAvailableVariables: (nodeId: string) => {
         const { edges, dataEntities } = get();
-
-        // 1. 현재 노드의 상위 노드 ID들을 모두 찾음 (Data Lineage)
         const upstreamNodeIds = getUpstreamNodeIds(nodeId, edges);
-
-        // 2. 전체 변수 풀(dataEntities) 중에서, sourceNodeId가 상위 노드 목록에 있는 것만 필터링
-        //    (즉, 이 시점에서 이미 생성되어 존재하는 데이터만 리턴)
         return dataEntities.filter(entity =>
             entity.sourceNodeId && upstreamNodeIds.has(entity.sourceNodeId)
         );
@@ -315,14 +309,11 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         }
     },
 
-    // [New] 노드 설정 업데이트 구현
     updateNodeConfiguration: (nodeId: string, newConfig: Partial<NodeConfiguration>) => {
         const { nodes, currentProcess } = get();
 
-        // 1. ReactFlow Nodes 상태 업데이트 (화면 갱신용)
         const updatedNodes = nodes.map((node) => {
             if (node.id === nodeId) {
-                // 기존 data 구조를 유지하면서 configuration만 병합
                 const currentData = node.data;
                 const updatedConfig = { ...currentData.configuration, ...newConfig };
 
@@ -337,7 +328,6 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
             return node;
         });
 
-        // 2. ProcessResponse 상태 업데이트 (데이터 무결성 유지)
         let updatedProcess = currentProcess;
         if (currentProcess) {
             const updatedActivities = currentProcess.activities.map((activity) => {
@@ -360,6 +350,21 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
             nodes: updatedNodes,
             currentProcess: updatedProcess,
         });
+    },
+
+    // [New] 분석 결과 저장 (Target ID 기준으로 그룹화)
+    setAnalysisResults: (results: AnalysisResult[]) => {
+        const grouped: Record<string, AnalysisResult[]> = {};
+        results.forEach(item => {
+            const key = item.targetNodeId || 'global';
+            if (!grouped[key]) grouped[key] = [];
+            grouped[key].push(item);
+        });
+        set({ analysisResults: grouped });
+    },
+
+    clearAnalysisResults: () => {
+        set({ analysisResults: {} });
     },
 
     onNodesChange: (changes) => {

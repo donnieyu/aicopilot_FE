@@ -44,7 +44,7 @@ export interface Activity {
     inputMapping?: Record<string, string>;
     position?: { x: number; y: number };
     nextActivityId?: string;
-    layoutDirection?: 'LR' | 'TB'; // 추가
+    layoutDirection?: 'LR' | 'TB';
 }
 
 /**
@@ -213,4 +213,15 @@ export interface NodeSuggestion {
 
 export interface SuggestionResponse {
     suggestions: NodeSuggestion[];
+}
+
+// ----------------------------------------------------------------------
+// [NEW] Analysis Result Type (Shadow Architect)
+// ----------------------------------------------------------------------
+export interface AnalysisResult {
+    targetNodeId: string;
+    severity: 'ERROR' | 'WARNING' | 'INFO';
+    type: string;
+    message: string;
+    suggestion?: string;
 }

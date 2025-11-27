@@ -3,8 +3,9 @@ import ReactFlow, {
     Background,
     Controls,
     MiniMap,
+    ReactFlowProvider, // [New] Provider 추가
 } from 'reactflow';
-import type { Node, NodeTypes } from 'reactflow'; // [Fix] import type 사용
+import type { Node, NodeTypes } from 'reactflow';
 import { useWorkflowStore } from '../../store/useWorkflowStore';
 import {
     UserTaskNode,
@@ -14,6 +15,7 @@ import {
     EndNode,
     SwimlaneNode
 } from './nodes/CustomNodes';
+import { AnalysisConsole } from './components/AnalysisConsole'; // [New] Import
 import 'reactflow/dist/style.css';
 
 const nodeTypes: NodeTypes = {
@@ -29,7 +31,8 @@ interface WorkflowCanvasProps {
     onNodeClick?: (event: React.MouseEvent, node: Node) => void;
 }
 
-export const WorkflowCanvas = ({ onNodeClick }: WorkflowCanvasProps) => {
+// ReactFlowProvider로 감싸기 위한 내부 컴포넌트
+const FlowContent = ({ onNodeClick }: WorkflowCanvasProps) => {
     const { nodes, edges, onNodesChange, onEdgesChange, onConnect } = useWorkflowStore();
 
     const handleNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
@@ -39,7 +42,7 @@ export const WorkflowCanvas = ({ onNodeClick }: WorkflowCanvasProps) => {
     }, [onNodeClick]);
 
     return (
-        <div className="w-full h-full bg-white">
+        <>
             <ReactFlow
                 nodes={nodes}
                 edges={edges}
@@ -65,6 +68,19 @@ export const WorkflowCanvas = ({ onNodeClick }: WorkflowCanvasProps) => {
                     }}
                 />
             </ReactFlow>
+
+            {/* [New] 하단 중앙 플로팅 콘솔 추가 */}
+            <AnalysisConsole />
+        </>
+    );
+};
+
+export const WorkflowCanvas = (props: WorkflowCanvasProps) => {
+    return (
+        <div className="w-full h-full bg-white relative">
+            <ReactFlowProvider>
+                <FlowContent {...props} />
+            </ReactFlowProvider>
         </div>
     );
 };

@@ -10,9 +10,11 @@ import { OutlinerPanel } from './features/workflow/components/OutlinerPanel';
 import { GeneratingOverlay } from './features/workflow/components/GeneratingOverlay';
 import { AiStatusWidget } from './features/workflow/components/AiStatusWidget';
 import { WorkflowHeader } from './features/workflow/components/WorkflowHeader';
+import { NodeConfigPanel } from './features/workflow/components/NodeConfigPanel'; // [New] Import
 import clsx from 'clsx';
 import type { NodeSuggestion, ProcessDefinition } from './types/workflow';
 import type { Node } from 'reactflow';
+import { useAutoAnalysis } from './hooks/useAutoAnalysis';
 
 type WorkflowStep = 'LANDING' | 'OUTLINING' | 'VIEWING';
 
@@ -25,6 +27,8 @@ function App() {
 
     const [suggestions, setSuggestions] = useState<NodeSuggestion[]>([]);
     const [showSuggestionPanel, setShowSuggestionPanel] = useState(false);
+
+    // [UX] 선택된 노드 관리 (ConfigPanel 표시용)
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
     const {
@@ -42,13 +46,13 @@ function App() {
     const setProcess = useWorkflowStore((state) => state.setProcess);
     const applySuggestion = useWorkflowStore((state) => state.applySuggestion);
 
-    // [Effect] Process Generation Complete -> Transition to Viewing
+    // [New] Activate Shadow Architect
+    useAutoAnalysis();
+
     useEffect(() => {
         if (jobStatus?.processResponse) {
             setProcess(jobStatus.processResponse);
             if (step !== 'VIEWING') {
-                // [Fix] ESLint Error: Calling setState synchronously...
-                // setTimeout으로 비동기 처리하여 렌더링 사이클 분리
                 setTimeout(() => setStep('VIEWING'), 0);
             }
         }
@@ -63,14 +67,29 @@ function App() {
         startTransformation(definition);
     };
 
-    const handleNodeClick = async (_event: MouseEvent, node: Node) => {
-        if (selectedNodeId === node.id && showSuggestionPanel) {
-            setShowSuggestionPanel(false);
-            return;
-        }
-        if (!currentJobId) return;
+    // [Refactor] 노드 클릭 핸들러: API 호출 제거 -> 패널 열기만 수행
+    const handleNodeClick = (_event: MouseEvent, node: Node) => {
+        // 이미 선택된 노드면 아무것도 하지 않음 (또는 토글)
+        if (selectedNodeId === node.id) return;
 
+        console.log("👆 Node Clicked:", node.id, "- Opening Inspector");
+
+        // 1. 선택 상태 업데이트
         setSelectedNodeId(node.id);
+
+        // 2. 기존 제안 패널 닫기 (새로운 컨텍스트 시작)
+        setShowSuggestionPanel(false);
+        setSuggestions([]);
+
+        // ⚠️ 여기서 API(getSuggestions)를 호출하지 않습니다!
+        // 사용자가 ConfigPanel의 버튼을 누를 때 호출합니다.
+    };
+
+    // [New] AI 제안 요청 핸들러 (ConfigPanel의 버튼에서 호출)
+    const handleTriggerSuggestion = async () => {
+        if (!selectedNodeId || !currentJobId) return;
+
+        // UI 피드백: 제안 패널을 로딩 상태로 먼저 띄움
         setShowSuggestionPanel(true);
         setSuggestions([]);
 
@@ -81,14 +100,18 @@ function App() {
         const graphContext = JSON.stringify({ nodes: simplifiedNodes, edges });
 
         try {
+            console.log("🤖 Asking AI for suggestions on node:", selectedNodeId);
             const response = await getSuggestions({
                 graphJson: graphContext,
-                focusNodeId: node.id,
+                focusNodeId: selectedNodeId,
                 jobId: currentJobId
             });
-            if (response?.suggestions) setSuggestions(response.suggestions);
+            if (response?.suggestions) {
+                setSuggestions(response.suggestions);
+            }
         } catch (e) {
-            console.error(e);
+            console.error("Suggestion failed", e);
+            setShowSuggestionPanel(false); // 에러 시 닫기
         }
     };
 
@@ -102,8 +125,6 @@ function App() {
 
     const showBlockingOverlay = isTransforming || (isProcessing && !jobStatus?.processResponse && step === 'OUTLINING');
 
-    // --- RENDER START ---
-
     if (step === 'LANDING') {
         return <LandingPage onStart={handleStartDrafting} />;
     }
@@ -113,7 +134,6 @@ function App() {
             <>
                 <GeneratingOverlay isVisible={showBlockingOverlay} message={jobStatus?.message || "Analyzing structure..."} />
                 <div className={clsx("w-full h-full transition-opacity duration-500", showBlockingOverlay ? "opacity-0" : "opacity-100")}>
-                    {/* [Fix] mode prop explicitly set to FULL (optional as it's default) */}
                     <OutlinerPanel
                         isOpen={true}
                         onClose={() => {}}
@@ -127,7 +147,6 @@ function App() {
         );
     }
 
-    // VIEWING
     return (
         <div className="flex flex-col h-screen overflow-hidden bg-slate-50 relative">
             <AiStatusWidget status={jobStatus} message={jobStatus?.message || ''} />
@@ -155,8 +174,22 @@ function App() {
                     mode="SIDE"
                 />
 
+                {/* [New] 우측 속성 패널 (Inspector) */}
+                <NodeConfigPanel
+                    nodeId={selectedNodeId}
+                    isOpen={!!selectedNodeId}
+                    onClose={() => setSelectedNodeId(null)}
+                    onTriggerSuggestion={handleTriggerSuggestion} // 수동 트리거 연결
+                />
+
+                {/* AI 제안 패널 (Suggestion) */}
                 {showSuggestionPanel && (
-                    <SuggestionPanel suggestions={suggestions} isLoading={isSuggesting} onApply={handleApplySuggestion} onClose={() => setShowSuggestionPanel(false)} />
+                    <SuggestionPanel
+                        suggestions={suggestions}
+                        isLoading={isSuggesting}
+                        onApply={handleApplySuggestion}
+                        onClose={() => setShowSuggestionPanel(false)}
+                    />
                 )}
             </div>
         </div>
