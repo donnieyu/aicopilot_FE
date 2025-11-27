@@ -1,14 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import type { ProcessResponse, ProcessStep } from '../../../../types/workflow'; // [Fix] Removed ProcessDefinition
-import { suggestProcessOutline } from '../../../../api/workflow';
+import type { ProcessResponse, ProcessStep } from '../../../../types/workflow';
+import { suggestProcessOutline, suggestStepDetail } from '../../../../api/workflow'; // [Fix] Import added
 
 export function useOutliner(process: ProcessResponse | null, initialTopic: string) {
-    // [Fix] Initialize state from props to avoid initial effect cascade
     const [topic, setTopic] = useState(process?.processName || initialTopic);
     const [description, setDescription] = useState(process?.description || '');
 
-    // [Fix] Lazy initialization for steps
     const [draftSteps, setDraftSteps] = useState<ProcessStep[]>(() => {
         if (process) {
             return process.activities.map((act) => ({
@@ -22,11 +20,9 @@ export function useOutliner(process: ProcessResponse | null, initialTopic: strin
         return [];
     });
 
-    // Editing State
     const [editingStepId, setEditingStepId] = useState<string | null>(null);
     const [tempStep, setTempStep] = useState<Partial<ProcessStep>>({});
 
-    // Sync Effect: Updates state only when 'process' prop actually changes after mount
     useEffect(() => {
         if (process) {
             setTopic(prev => (prev !== process.processName ? process.processName : prev));
@@ -43,12 +39,32 @@ export function useOutliner(process: ProcessResponse | null, initialTopic: strin
         }
     }, [process]);
 
-    // AI Mutation
+    // Outline AI Mutation
     const { mutate: getOutline, isPending: isSuggesting } = useMutation({
         mutationFn: (params: { currentTopic: string, currentDesc: string }) =>
             suggestProcessOutline(params.currentTopic, params.currentDesc),
         onSuccess: (data) => {
             setDraftSteps(data.steps);
+        }
+    });
+
+    // [New] Step Detail AI Mutation
+    const { mutate: getStepDetail, isPending: isStepSuggesting } = useMutation({
+        mutationFn: (params: { topic: string, context: string, stepIndex: number }) =>
+            suggestStepDetail(params.topic, params.context, params.stepIndex),
+        onSuccess: (data) => {
+            // Merge suggested data into tempStep (keep existing ID)
+            setTempStep(prev => ({
+                ...prev,
+                name: data.name,
+                role: data.role,
+                description: data.description,
+                type: data.type
+            }));
+        },
+        onError: (error) => {
+            console.error("Failed to suggest step:", error);
+            // Fallback or Toast here
         }
     });
 
@@ -63,7 +79,16 @@ export function useOutliner(process: ProcessResponse | null, initialTopic: strin
         getOutline({ currentTopic: topic, currentDesc: description });
     };
 
-    // Step Operations
+    // [New] Auto-fill handler for StepEditor
+    const autoFillStep = (index: number) => {
+        if (!topic) {
+            alert("Please enter a topic first.");
+            return;
+        }
+        // Send context including topic, description, and maybe previous step info
+        getStepDetail({ topic, context: description, stepIndex: index });
+    };
+
     const addStep = (index: number) => {
         const newStep: ProcessStep = {
             stepId: `temp_${Date.now()}`,
@@ -102,7 +127,6 @@ export function useOutliner(process: ProcessResponse | null, initialTopic: strin
         setTempStep({});
     };
 
-    // [Fix] Replaced 'any' with specific type lookup
     const updateTempStep = (field: keyof ProcessStep, value: ProcessStep[keyof ProcessStep]) => {
         setTempStep(prev => ({ ...prev, [field]: value }));
     };
@@ -112,9 +136,11 @@ export function useOutliner(process: ProcessResponse | null, initialTopic: strin
         description, setDescription,
         draftSteps,
         isSuggesting,
+        isStepSuggesting, // [New] Expose loading state
         editingStepId,
         tempStep,
         generateWithAI,
+        autoFillStep, // [New] Expose handler
         addStep,
         deleteStep,
         saveStep,

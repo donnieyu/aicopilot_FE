@@ -13,10 +13,12 @@ interface StepCardProps {
     onSave: () => void;
     onCancel: () => void;
     onDelete: () => void;
-    // [Fix] Split add actions to 'Before' and 'After' for clarity
     onAddBefore: () => void;
     onAddAfter: () => void;
     isLast: boolean;
+    // [New] Props for AI Auto-fill
+    onAutoFill: () => void;
+    isStepSuggesting: boolean;
 }
 
 const getIcon = (type: string) => {
@@ -28,7 +30,8 @@ const getIcon = (type: string) => {
 export function StepCard({
                              step, index, isEditing, tempStep,
                              onEditStart, onEditChange, onSave, onCancel, onDelete,
-                             onAddBefore, onAddAfter, isLast
+                             onAddBefore, onAddAfter, isLast,
+                             onAutoFill, isStepSuggesting
                          }: StepCardProps) {
 
     // --- EDIT MODE ---
@@ -40,6 +43,8 @@ export function StepCard({
                 onEditChange={onEditChange}
                 onSave={onSave}
                 onCancel={onCancel}
+                onAutoFill={onAutoFill}
+                isSuggesting={isStepSuggesting}
             />
         );
     }

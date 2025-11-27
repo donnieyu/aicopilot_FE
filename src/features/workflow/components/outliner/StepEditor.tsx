@@ -1,12 +1,16 @@
-import { User, GitFork, Settings, ChevronDown } from 'lucide-react';
+import { User, GitFork, Settings, ChevronDown, Sparkles, Loader2 } from 'lucide-react';
+// [Fix] Removed unused 'clsx' import
 import type { ProcessStep } from '../../../../types/workflow';
 
 interface StepEditorProps {
     index: number;
     tempStep: Partial<ProcessStep>;
-    onEditChange: (field: keyof ProcessStep, value: any) => void;
+    // [Fix] Replaced 'any' with specific type lookup from ProcessStep
+    onEditChange: (field: keyof ProcessStep, value: ProcessStep[keyof ProcessStep]) => void;
     onSave: () => void;
     onCancel: () => void;
+    onAutoFill: () => void;
+    isSuggesting: boolean;
 }
 
 const getIcon = (type: string) => {
@@ -15,13 +19,36 @@ const getIcon = (type: string) => {
     return <Settings size={18} />;
 };
 
-export function StepEditor({ index, tempStep, onEditChange, onSave, onCancel }: StepEditorProps) {
+export function StepEditor({ index, tempStep, onEditChange, onSave, onCancel, onAutoFill, isSuggesting }: StepEditorProps) {
     return (
-        <div className="w-full bg-white rounded-2xl shadow-xl border-2 border-blue-500 p-6 animate-in zoom-in-95 duration-200 z-20 my-4 ring-4 ring-blue-50/50">
+        <div className="w-full bg-white rounded-2xl shadow-xl border-2 border-blue-500 p-6 animate-in zoom-in-95 duration-200 z-20 my-4 ring-4 ring-blue-50/50 relative overflow-hidden">
+
+            {/* Loading Overlay for this card */}
+            {isSuggesting && (
+                <div className="absolute inset-0 bg-white/80 backdrop-blur-sm z-10 flex flex-col items-center justify-center animate-in fade-in">
+                    <Loader2 className="w-8 h-8 text-blue-600 animate-spin mb-2" />
+                    <span className="text-xs font-bold text-blue-600">AI is filling details...</span>
+                </div>
+            )}
+
             <div className="flex justify-between items-center mb-5">
-                <span className="text-xs font-bold text-blue-600 uppercase tracking-wider bg-blue-50 px-2.5 py-1 rounded-lg">
-                    Editing Step {index + 1}
-                </span>
+                <div className="flex items-center gap-3">
+                    <span className="text-xs font-bold text-blue-600 uppercase tracking-wider bg-blue-50 px-2.5 py-1 rounded-lg">
+                        Editing Step {index + 1}
+                    </span>
+
+                    {/* AI Auto-Fill Button */}
+                    <button
+                        onClick={onAutoFill}
+                        disabled={isSuggesting}
+                        className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-[10px] font-bold hover:shadow-md hover:scale-105 transition-all disabled:opacity-50"
+                        title="Auto-fill this step with AI"
+                    >
+                        <Sparkles size={12} fill="currentColor" />
+                        <span>Auto-Fill</span>
+                    </button>
+                </div>
+
                 <div className="p-1.5 bg-blue-100 text-blue-600 rounded-lg">
                     {getIcon(tempStep.type || 'ACTION')}
                 </div>

@@ -22,9 +22,11 @@ export function OutlinerPanel({ process, onTransform, initialTopic = '', mode = 
         description, setDescription,
         draftSteps,
         isSuggesting,
+        isStepSuggesting, // [New]
         editingStepId,
         tempStep,
         generateWithAI,
+        autoFillStep, // [New]
         addStep,
         deleteStep,
         saveStep,
@@ -136,7 +138,7 @@ export function OutlinerPanel({ process, onTransform, initialTopic = '', mode = 
                         {/* Vertical Connector Line */}
                         <div className="absolute top-12 bottom-12 left-1/2 w-0.5 bg-slate-200 -z-10 transform -translate-x-1/2 dashed-line"></div>
 
-                        {/* [Restored] Empty State - Add First Step */}
+                        {/* Empty State */}
                         {draftSteps.length === 0 && !isSuggesting && (
                             <div className="py-20 text-center w-full relative z-10 animate-in fade-in zoom-in-95 duration-300">
                                 <div className="inline-flex flex-col items-center justify-center p-10 border-2 border-dashed border-slate-200 rounded-3xl bg-white w-full max-w-md hover:border-blue-300 transition-colors group cursor-pointer" onClick={() => addStep(0)}>
@@ -182,10 +184,13 @@ export function OutlinerPanel({ process, onTransform, initialTopic = '', mode = 
                                 onSave={saveStep}
                                 onCancel={cancelStep}
                                 onDelete={() => deleteStep(step.stepId)}
-                                // [Fix] Correctly mapped handlers for Insert Before/After
+                                // Handlers
                                 onAddBefore={() => addStep(index)}
                                 onAddAfter={() => addStep(index + 1)}
                                 isLast={index === draftSteps.length - 1}
+                                // AI Auto-Fill
+                                onAutoFill={() => autoFillStep(index)}
+                                isStepSuggesting={isStepSuggesting}
                             />
                         ))}
 

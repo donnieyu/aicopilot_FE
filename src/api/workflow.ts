@@ -1,7 +1,7 @@
 import { client } from './client';
-import type { JobStatus, SuggestionResponse, ProcessDefinition } from '../types/workflow';
+import type { JobStatus, SuggestionResponse, ProcessDefinition, ProcessStep } from '../types/workflow';
 
-// ... (기존 API 유지) ...
+// ... (Existing APIs) ...
 export const startProcessGeneration = async (prompt: string) => {
     const { data } = await client.post<{ jobId: string; message: string }>('/copilot/start', { userPrompt: prompt });
     return data;
@@ -17,13 +17,11 @@ export const getJobStatus = async (jobId: string) => {
     return data;
 };
 
-// [Updated] Graph Suggestion (URL 변경 반영)
 export const suggestNextSteps = async (
     currentGraphJson: string,
     focusNodeId: string,
     jobId: string
 ) => {
-    // Controller URL 변경에 맞춰 /suggest/graph 사용 (하위 호환성을 위해 /suggest도 가능하지만 명시적 분리)
     const { data } = await client.post<SuggestionResponse>('/copilot/suggest/graph', {
         currentGraphJson,
         focusNodeId,
@@ -32,11 +30,22 @@ export const suggestNextSteps = async (
     return data;
 };
 
-// [New] Outline Suggestion
 export const suggestProcessOutline = async (topic: string, description: string) => {
     const { data } = await client.post<ProcessDefinition>('/copilot/suggest/outline', {
         topic,
         description
+    });
+    return data;
+};
+
+// [New] Suggest details for a single step
+export const suggestStepDetail = async (topic: string, context: string, stepIndex: number) => {
+    // 백엔드 API가 아직 없다면 Mocking하거나, 추후 백엔드 구현 필요
+    // 여기서는 실제 API 호출 구조를 잡아둡니다.
+    const { data } = await client.post<ProcessStep>('/copilot/suggest/step', {
+        topic,
+        context,
+        stepIndex
     });
     return data;
 };
