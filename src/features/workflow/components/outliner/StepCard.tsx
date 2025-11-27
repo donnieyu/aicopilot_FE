@@ -107,16 +107,14 @@ export function StepCard({
                 </div>
             </div>
 
-            {/* Insert Button (Bottom - Add After - Only for Last Item) */}
-            {isLast && (
-                <button
-                    onClick={onAddAfter}
-                    className="absolute -bottom-4 z-10 w-8 h-8 bg-white border border-slate-200 rounded-full text-slate-400 hover:text-blue-600 hover:border-blue-500 hover:scale-110 transition-all shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100"
-                    title="Append Step"
-                >
-                    <Plus size={16} />
-                </button>
-            )}
+            {/* Insert Button (Button - Add After) */}
+            <button
+                onClick={onAddAfter}
+                className="absolute -bottom-4 z-10 w-8 h-8 bg-white border border-slate-200 rounded-full text-slate-400 hover:text-blue-600 hover:border-blue-500 hover:scale-110 transition-all shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100"
+                title="Append Step"
+            >
+                <Plus size={16} />
+            </button>
         </div>
     );
 }
