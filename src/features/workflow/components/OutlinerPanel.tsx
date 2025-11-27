@@ -195,7 +195,7 @@ export function OutlinerPanel({ process, onTransform, initialTopic = '', mode = 
                         ))}
 
                         {/* End Node */}
-                        <div className="flex flex-col items-center mt-10 opacity-60">
+                        <div className="flex flex-col items-center pt-10 opacity-60">
                             <div className="w-4 h-4 bg-red-400 rounded-full ring-4 ring-red-100 mb-2"></div>
                             <span className="text-[10px] font-black text-red-500 tracking-widest bg-red-50 px-2 py-0.5 rounded-full">END</span>
                         </div>
