@@ -4,15 +4,16 @@ import ReactFlow, {
     Controls,
     useNodesState,
     useEdgesState,
-    ReactFlowProvider
-    // [Fix] MarkerType removed (unused)
+    ReactFlowProvider,
+    MarkerType
 } from 'reactflow';
 import {
     X,
     Wand2,
     Check,
     RotateCcw,
-    Split
+    Split,
+    MessageSquare // [New] Icon
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useMutation } from '@tanstack/react-query';
@@ -20,7 +21,6 @@ import { AiActionButton } from '../../../components/AiActionButton';
 import type { Node, Edge } from 'reactflow';
 import type { AnalysisResult } from '../../../types/workflow';
 import { useWorkflowStore } from '../../../store/useWorkflowStore';
-// [Fix] Use relative path instead of absolute path alias
 import { fixProcessGraph } from '../../../api/workflow';
 import {
     UserTaskNode,
@@ -30,6 +30,7 @@ import {
     EndNode,
     SwimlaneNode
 } from '../nodes/CustomNodes';
+import { getLayoutedElements } from '../../../store/layoutUtils';
 
 // Node Types (Reuse existing ones)
 const nodeTypes = {
@@ -51,6 +52,8 @@ export function ErrorFixModal({ isOpen, onClose, errors }: ErrorFixModalProps) {
     // Global Store Access (Read-Only Source)
     const originalNodes = useWorkflowStore((state) => state.nodes);
     const originalEdges = useWorkflowStore((state) => state.edges);
+    const currentProcess = useWorkflowStore((state) => state.currentProcess);
+    const layoutDirection = useWorkflowStore((state) => state.layoutDirection);
     const setGraph = useWorkflowStore((state) => state.setGraph);
 
     // Local Simulation State
@@ -60,6 +63,7 @@ export function ErrorFixModal({ isOpen, onClose, errors }: ErrorFixModalProps) {
     // AI Fix State
     const [selectedError, setSelectedError] = useState<AnalysisResult | null>(null);
     const [fixedGraph, setFixedGraph] = useState<{ nodes: Node[], edges: Edge[] } | null>(null);
+    const [fixMessage, setFixMessage] = useState<string | null>(null); // [New] Fix description state
 
     // Initialize Simulation Canvas with Original Data
     useEffect(() => {
@@ -67,6 +71,7 @@ export function ErrorFixModal({ isOpen, onClose, errors }: ErrorFixModalProps) {
             setNodes(JSON.parse(JSON.stringify(originalNodes)));
             setEdges(JSON.parse(JSON.stringify(originalEdges)));
             setFixedGraph(null);
+            setFixMessage(null); // Reset message
 
             // Set default error if none selected
             if (errors.length > 0 && !selectedError) {
@@ -90,11 +95,81 @@ export function ErrorFixModal({ isOpen, onClose, errors }: ErrorFixModalProps) {
             return await fixProcessGraph(snapshot, selectedError);
         },
         onSuccess: (data) => {
-            if (data && data.nodes && data.edges) {
-                // Update Simulation Canvas with fixed data
-                setNodes(data.nodes);
-                setEdges(data.edges);
-                setFixedGraph({ nodes: data.nodes, edges: data.edges });
+            if (data && data.nodes && data.edges && currentProcess) {
+
+                // 1. Filter Activity Nodes from AI response
+                const activityNodes = data.nodes.filter((n: Node) =>
+                    ['USER_TASK', 'SERVICE_TASK', 'EXCLUSIVE_GATEWAY'].includes(n.type || '')
+                );
+
+                // 2. Reconstruct Infrastructure Nodes (Swimlanes, Start, End)
+                const infrastructureNodes: Node[] = [];
+
+                currentProcess.swimlanes.forEach((lane) => {
+                    infrastructureNodes.push({
+                        id: lane.swimlaneId,
+                        type: 'SWIMLANE',
+                        data: { label: lane.name, layoutDirection },
+                        position: { x: 0, y: 0 },
+                        selectable: false,
+                        zIndex: -1,
+                    });
+                });
+
+                // 3. Start/End Nodes (Preserve from AI if present, else default)
+                const existingStart = data.nodes.find((n: Node) => n.type === 'START');
+                if (existingStart) {
+                    infrastructureNodes.push({ ...existingStart, data: { ...existingStart.data, layoutDirection } });
+                } else {
+                    infrastructureNodes.push({
+                        id: 'node_start',
+                        type: 'START',
+                        data: { label: 'Start', swimlaneId: currentProcess.swimlanes[0]?.swimlaneId, layoutDirection },
+                        position: { x: 0, y: 0 }
+                    });
+                }
+
+                const existingEnd = data.nodes.find((n: Node) => n.type === 'END');
+                if (existingEnd) {
+                    infrastructureNodes.push({ ...existingEnd, data: { ...existingEnd.data, layoutDirection } });
+                } else {
+                    infrastructureNodes.push({
+                        id: 'node_end_point',
+                        type: 'END',
+                        data: { label: 'End', swimlaneId: currentProcess.swimlanes[currentProcess.swimlanes.length - 1]?.swimlaneId, layoutDirection },
+                        position: { x: 0, y: 0 }
+                    });
+                }
+
+                // 4. Combine and Calculate Layout
+                const nodesToLayout = [...infrastructureNodes, ...activityNodes];
+
+                // Sync layout direction
+                nodesToLayout.forEach(n => {
+                    if (n.data) n.data.layoutDirection = layoutDirection;
+                });
+
+                // Apply Standard Edge Styling
+                const styledEdges = (data.edges as Edge[]).map(edge => ({
+                    ...edge,
+                    type: 'smoothstep',
+                    animated: true,
+                    markerEnd: { type: MarkerType.ArrowClosed },
+                    style: { strokeWidth: 1.5 }
+                }));
+
+                const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+                    nodesToLayout,
+                    styledEdges,
+                    currentProcess.swimlanes,
+                    layoutDirection
+                );
+
+                // 5. Update Simulation State
+                setNodes(layoutedNodes);
+                setEdges(layoutedEdges);
+                setFixedGraph({ nodes: layoutedNodes, edges: layoutedEdges });
+                setFixMessage(data.fixDescription || "Automatically fixed by AI."); // [New] Set description
             }
         },
         onError: (error) => {
@@ -109,7 +184,6 @@ export function ErrorFixModal({ isOpen, onClose, errors }: ErrorFixModalProps) {
 
     const handleApplyFix = () => {
         if (fixedGraph) {
-            // Update the main store directly
             setGraph(fixedGraph.nodes, fixedGraph.edges);
             alert("Changes applied to main canvas!");
             onClose();
@@ -120,6 +194,7 @@ export function ErrorFixModal({ isOpen, onClose, errors }: ErrorFixModalProps) {
         setNodes(JSON.parse(JSON.stringify(originalNodes)));
         setEdges(JSON.parse(JSON.stringify(originalEdges)));
         setFixedGraph(null);
+        setFixMessage(null);
     };
 
     if (!isOpen) return null;
@@ -164,6 +239,7 @@ export function ErrorFixModal({ isOpen, onClose, errors }: ErrorFixModalProps) {
                                     onClick={() => {
                                         setSelectedError(err);
                                         setFixedGraph(null);
+                                        setFixMessage(null); // Reset message on switch
                                         setNodes(JSON.parse(JSON.stringify(originalNodes)));
                                         setEdges(JSON.parse(JSON.stringify(originalEdges)));
                                     }}
@@ -215,19 +291,32 @@ export function ErrorFixModal({ isOpen, onClose, errors }: ErrorFixModalProps) {
                                             Simulate Fix
                                         </AiActionButton>
                                     ) : (
-                                        <div className="flex gap-2 animate-in slide-in-from-bottom-2 fade-in">
-                                            <button
-                                                onClick={handleReset}
-                                                className="flex-1 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 flex items-center justify-center gap-2"
-                                            >
-                                                <RotateCcw size={16} /> Undo
-                                            </button>
-                                            <button
-                                                onClick={handleApplyFix}
-                                                className="flex-[2] py-3 bg-green-600 text-white rounded-xl text-sm font-bold hover:bg-green-700 shadow-lg shadow-green-200 flex items-center justify-center gap-2"
-                                            >
-                                                <Check size={18} /> Apply Changes
-                                            </button>
+                                        <div className="space-y-3 animate-in slide-in-from-bottom-2 fade-in">
+                                            {/* [New] Fix Description Box */}
+                                            {fixMessage && (
+                                                <div className="bg-green-50 border border-green-200 rounded-lg p-3 flex gap-2">
+                                                    <MessageSquare size={16} className="text-green-600 flex-shrink-0 mt-0.5" />
+                                                    <div>
+                                                        <p className="text-xs font-bold text-green-700">Fix Applied:</p>
+                                                        <p className="text-xs text-green-600 mt-0.5 leading-snug">{fixMessage}</p>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            <div className="flex gap-2">
+                                                <button
+                                                    onClick={handleReset}
+                                                    className="flex-1 py-3 border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 flex items-center justify-center gap-2"
+                                                >
+                                                    <RotateCcw size={16} /> Undo
+                                                </button>
+                                                <button
+                                                    onClick={handleApplyFix}
+                                                    className="flex-[2] py-3 bg-green-600 text-white rounded-xl text-sm font-bold hover:bg-green-700 shadow-lg shadow-green-200 flex items-center justify-center gap-2"
+                                                >
+                                                    <Check size={18} /> Apply Changes
+                                                </button>
+                                            </div>
                                         </div>
                                     )}
                                 </div>

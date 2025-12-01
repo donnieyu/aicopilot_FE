@@ -44,7 +44,6 @@ interface WorkflowState {
 
     // Actions
     setProcess: (process: ProcessResponse) => void;
-    // [Fix] Add missing setGraph definition
     setGraph: (nodes: Node[], edges: Edge[]) => void;
 
     setDataModel: (entities: DataEntity[], groups: DataEntitiesGroup[]) => void;
@@ -275,8 +274,75 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         });
     },
 
-    // [Fix] Implement setGraph to update nodes and edges directly
-    setGraph: (nodes, edges) => set({ nodes, edges }),
+    // [Fix] setGraph: 스마트 레이아웃 적용 (스윔레인 복원 및 Dagre 재계산)
+    setGraph: (newNodes, newEdges) => {
+        const { layoutDirection, currentProcess } = get();
+        if (!currentProcess) return;
+
+        // 1. AI가 반환한 노드 중 'Activity' 노드만 추출 (User, Service, Gateway)
+        // (START, END, SWIMLANE은 기존 구조 기반으로 재생성하여 일관성 유지)
+        const activityNodes = newNodes.filter(n =>
+            ['USER_TASK', 'SERVICE_TASK', 'EXCLUSIVE_GATEWAY'].includes(n.type || '')
+        );
+
+        // 2. 기존 Process 구조에서 Swimlane 정보 복원
+        const infrastructureNodes: Node[] = [];
+
+        currentProcess.swimlanes.forEach((lane) => {
+            infrastructureNodes.push({
+                id: lane.swimlaneId,
+                type: 'SWIMLANE',
+                data: { label: lane.name, layoutDirection },
+                position: { x: 0, y: 0 },
+                selectable: false,
+                zIndex: -1,
+            });
+        });
+
+        // 3. Start/End 노드 처리 (AI가 반환했으면 유지, 없으면 재생성)
+        // Start
+        const existingStart = newNodes.find(n => n.type === 'START');
+        if (existingStart) {
+            infrastructureNodes.push({ ...existingStart, data: { ...existingStart.data, layoutDirection } });
+        } else {
+            infrastructureNodes.push({
+                id: 'node_start',
+                type: 'START',
+                data: { label: 'Start', swimlaneId: currentProcess.swimlanes[0]?.swimlaneId, layoutDirection },
+                position: { x: 0, y: 0 }
+            });
+        }
+
+        // End
+        const existingEnd = newNodes.find(n => n.type === 'END');
+        if (existingEnd) {
+            infrastructureNodes.push({ ...existingEnd, data: { ...existingEnd.data, layoutDirection } });
+        } else {
+            infrastructureNodes.push({
+                id: 'node_end_point',
+                type: 'END',
+                data: { label: 'End', swimlaneId: currentProcess.swimlanes[currentProcess.swimlanes.length - 1]?.swimlaneId, layoutDirection },
+                position: { x: 0, y: 0 }
+            });
+        }
+
+        // 4. 노드 합치기 및 레이아웃 재계산
+        const nodesToLayout = [...infrastructureNodes, ...activityNodes];
+
+        // activityNodes의 data.layoutDirection 동기화
+        nodesToLayout.forEach(n => {
+            if (n.data) n.data.layoutDirection = layoutDirection;
+        });
+
+        const { nodes: layoutedNodes, edges: layoutedEdges } = getLayoutedElements(
+            nodesToLayout,
+            newEdges,
+            currentProcess.swimlanes,
+            layoutDirection
+        );
+
+        set({ nodes: layoutedNodes, edges: layoutedEdges });
+    },
 
     setDataModel: (entities, groups) => set({ dataEntities: entities, dataGroups: groups }),
 
