@@ -9,7 +9,6 @@ interface StepCardProps {
     isEditing: boolean;
     tempStep: Partial<ProcessStep>;
     onEditStart: () => void;
-    // [Fix] any 타입을 구체적인 ProcessStep 값 타입으로 변경
     onEditChange: (field: keyof ProcessStep, value: ProcessStep[keyof ProcessStep]) => void;
     onSave: () => void;
     onCancel: () => void;
@@ -17,9 +16,9 @@ interface StepCardProps {
     onAddBefore: () => void;
     onAddAfter: () => void;
     isLast: boolean;
-    // [New] Props for AI Auto-fill
     onAutoFill: () => void;
     isStepSuggesting: boolean;
+    readOnly?: boolean; // [New] Prop
 }
 
 const getIcon = (type: string) => {
@@ -32,8 +31,8 @@ export function StepCard({
                              step, index, isEditing, tempStep,
                              onEditStart, onEditChange, onSave, onCancel, onDelete,
                              onAddBefore, onAddAfter,
-                             // [Fix] 사용하지 않는 isLast 파라미터 제거 (Props 인터페이스에는 유지하여 부모 호환성 보장)
-                             onAutoFill, isStepSuggesting
+                             onAutoFill, isStepSuggesting,
+                             readOnly // [New] Destructure
                          }: StepCardProps) {
 
     // --- EDIT MODE ---
@@ -54,23 +53,27 @@ export function StepCard({
     // --- VIEW MODE ---
     return (
         <div className="w-full flex flex-col items-center relative group">
-            {/* Insert Button (Top - Add Before) */}
-            <button
-                onClick={onAddBefore}
-                className="absolute -top-4 z-10 w-8 h-8 bg-white border border-slate-200 rounded-full text-slate-400 hover:text-blue-600 hover:border-blue-500 hover:scale-110 transition-all shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100"
-                title="Insert Step Before"
-            >
-                <Plus size={16} />
-            </button>
+            {/* Insert Button (Top - Add Before) - [Fix] Hide in ReadOnly */}
+            {!readOnly && (
+                <button
+                    onClick={onAddBefore}
+                    className="absolute -top-4 z-10 w-8 h-8 bg-white border border-slate-200 rounded-full text-slate-400 hover:text-blue-600 hover:border-blue-500 hover:scale-110 transition-all shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100"
+                    title="Insert Step Before"
+                >
+                    <Plus size={16} />
+                </button>
+            )}
 
             <div
                 className={clsx(
-                    "w-full bg-white rounded-2xl border p-6 my-3 relative transition-all hover:shadow-xl cursor-pointer group/card",
+                    "w-full bg-white rounded-2xl border p-6 my-3 relative transition-all",
+                    !readOnly && "hover:shadow-xl cursor-pointer group/card", // [Fix] Remove hover/cursor in ReadOnly
                     step.type === 'DECISION'
-                        ? "border-l-[6px] border-l-orange-400 border-y-slate-200 border-r-slate-200 hover:border-l-orange-500"
-                        : "border-l-[6px] border-l-blue-500 border-y-slate-200 border-r-slate-200 hover:border-l-blue-600"
+                        ? "border-l-[6px] border-l-orange-400 border-y-slate-200 border-r-slate-200"
+                        : "border-l-[6px] border-l-blue-500 border-y-slate-200 border-r-slate-200",
+                    !readOnly && (step.type === 'DECISION' ? "hover:border-l-orange-500" : "hover:border-l-blue-600")
                 )}
-                onClick={onEditStart}
+                onClick={() => !readOnly && onEditStart()} // [Fix] Prevent edit click
             >
                 <div className="flex items-start gap-5">
                     <div className={clsx(
@@ -84,12 +87,15 @@ export function StepCard({
                             <h4 className="text-lg font-bold text-slate-800 truncate">{step.name}</h4>
                             <div className="flex items-center gap-3">
                                 <span className="text-[10px] font-bold text-slate-300 tracking-wider">STEP {index + 1}</span>
-                                <button
-                                    onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                                    className="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover/card:opacity-100 p-1.5 rounded-lg hover:bg-red-50"
-                                >
-                                    <Trash2 size={16} />
-                                </button>
+                                {/* [Fix] Hide Delete Button in ReadOnly */}
+                                {!readOnly && (
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onDelete(); }}
+                                        className="text-slate-300 hover:text-red-500 transition-colors opacity-0 group-hover/card:opacity-100 p-1.5 rounded-lg hover:bg-red-50"
+                                    >
+                                        <Trash2 size={16} />
+                                    </button>
+                                )}
                             </div>
                         </div>
                         <div className="flex items-center gap-2 mt-2">
@@ -109,14 +115,16 @@ export function StepCard({
                 </div>
             </div>
 
-            {/* Insert Button (Button - Add After) */}
-            <button
-                onClick={onAddAfter}
-                className="absolute -bottom-4 z-10 w-8 h-8 bg-white border border-slate-200 rounded-full text-slate-400 hover:text-blue-600 hover:border-blue-500 hover:scale-110 transition-all shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100"
-                title="Append Step"
-            >
-                <Plus size={16} />
-            </button>
+            {/* Insert Button (Button - Add After) - [Fix] Hide in ReadOnly */}
+            {!readOnly && (
+                <button
+                    onClick={onAddAfter}
+                    className="absolute -bottom-4 z-10 w-8 h-8 bg-white border border-slate-200 rounded-full text-slate-400 hover:text-blue-600 hover:border-blue-500 hover:scale-110 transition-all shadow-sm flex items-center justify-center opacity-0 group-hover:opacity-100"
+                    title="Append Step"
+                >
+                    <Plus size={16} />
+                </button>
+            )}
         </div>
     );
 }

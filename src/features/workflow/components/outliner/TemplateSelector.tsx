@@ -32,7 +32,8 @@ interface TemplateSelectorProps {
 }
 
 export function TemplateSelector({ topic, onSelect, selectedDesc }: TemplateSelectorProps) {
-    const [isExpanded, setExpanded] = useState(false);
+    // [Change] Default state to true (expanded)
+    const [isExpanded, setExpanded] = useState(true);
 
     const currentTemplates = useMemo(() => {
         const key = Object.keys(MOCK_TEMPLATES).find(k => topic.includes(k));

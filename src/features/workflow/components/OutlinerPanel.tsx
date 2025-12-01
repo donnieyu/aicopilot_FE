@@ -1,4 +1,4 @@
-import { LayoutTemplate, X, Play, Plus, GitFork, Settings, Loader2 } from 'lucide-react';
+import { LayoutTemplate, X, GitFork, Settings, Plus, Loader2, Sparkles } from 'lucide-react';
 import clsx from 'clsx';
 import type { ProcessResponse, ProcessDefinition } from '../../../types/workflow';
 import { useOutliner } from './outliner/useOutliner';
@@ -6,6 +6,7 @@ import { OutlinerHeader } from './outliner/OutlinerHeader';
 import { TemplateSelector } from './outliner/TemplateSelector';
 import { ContextInput } from './outliner/ContextInput';
 import { StepCard } from './outliner/StepCard';
+import { AiActionButton } from '../../../components/AiActionButton';
 
 interface OutlinerPanelProps {
     isOpen: boolean;
@@ -22,11 +23,11 @@ export function OutlinerPanel({ process, onTransform, initialTopic = '', mode = 
         description, setDescription,
         draftSteps,
         isSuggesting,
-        isStepSuggesting, // [New]
+        isStepSuggesting,
         editingStepId,
         tempStep,
         generateWithAI,
-        autoFillStep, // [New]
+        autoFillStep,
         addStep,
         deleteStep,
         saveStep,
@@ -42,6 +43,8 @@ export function OutlinerPanel({ process, onTransform, initialTopic = '', mode = 
     };
 
     const isSideMode = mode === 'SIDE';
+    // [New] Define read-only state based on mode
+    const isReadOnly = isSideMode;
 
     return (
         <div className={clsx(
@@ -89,6 +92,7 @@ export function OutlinerPanel({ process, onTransform, initialTopic = '', mode = 
                         onGenerate={generateWithAI}
                         isGenerating={isSuggesting}
                         isDisabled={!topic || !description || isSuggesting}
+                        readOnly={isReadOnly} // [Fix] Pass readOnly prop
                     />
                 </div>
             </div>
@@ -113,14 +117,14 @@ export function OutlinerPanel({ process, onTransform, initialTopic = '', mode = 
                             <div className="px-3 py-1.5 bg-slate-100 rounded-lg text-xs font-bold text-slate-500">
                                 {draftSteps.length} Steps
                             </div>
-                            <button
+
+                            <AiActionButton
                                 onClick={handleTransform}
                                 disabled={draftSteps.length === 0}
-                                className="px-6 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:-translate-y-0.5 active:scale-[0.98] text-sm"
+                                className="shadow-lg shadow-blue-100/50"
                             >
-                                <Play size={14} fill="currentColor" />
-                                <span>Generate Map</span>
-                            </button>
+                                Generate Map
+                            </AiActionButton>
                         </div>
                     </div>
                 )}
@@ -141,7 +145,7 @@ export function OutlinerPanel({ process, onTransform, initialTopic = '', mode = 
                         {/* Empty State */}
                         {draftSteps.length === 0 && !isSuggesting && (
                             <div className="py-20 text-center w-full relative z-10 animate-in fade-in zoom-in-95 duration-300">
-                                <div className="inline-flex flex-col items-center justify-center p-10 border-2 border-dashed border-slate-200 rounded-3xl bg-white w-full max-w-md hover:border-blue-300 transition-colors group cursor-pointer" onClick={() => addStep(0)}>
+                                <div className="inline-flex flex-col items-center justify-center p-10 border-2 border-dashed border-slate-200 rounded-3xl bg-white w-full max-w-md hover:border-blue-300 transition-colors group cursor-pointer" onClick={() => !isReadOnly && addStep(0)}>
                                     <div className="p-4 bg-slate-50 rounded-full mb-4 group-hover:bg-blue-50 transition-colors">
                                         <Settings size={32} className="text-slate-300 group-hover:text-blue-400" />
                                     </div>
@@ -150,33 +154,36 @@ export function OutlinerPanel({ process, onTransform, initialTopic = '', mode = 
                                         Use the AI panel on the left to auto-draft,<br/>
                                         or start building manually.
                                     </p>
-                                    <button
-                                        className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 group-hover:text-blue-600 group-hover:border-blue-300 shadow-sm hover:shadow-md transition-all"
-                                    >
-                                        <Plus size={18} />
-                                        Add First Step Manually
-                                    </button>
+                                    {/* [Fix] Hide Add Button in Empty State if ReadOnly (though unlikely to happen in side mode) */}
+                                    {!isReadOnly && (
+                                        <button
+                                            className="flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 group-hover:text-blue-600 group-hover:border-blue-300 shadow-sm hover:shadow-md transition-all"
+                                        >
+                                            <Plus size={18} />
+                                            Add First Step Manually
+                                        </button>
+                                    )}
                                 </div>
                             </div>
                         )}
 
                         {/* Loading State */}
                         {isSuggesting && (
-                            <div className="py-20 flex flex-col items-center justify-center animate-pulse">
-                                <div className="bg-white p-4 rounded-full shadow-lg mb-4">
-                                    <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                            <div className="py-20 flex flex-col items-center justify-center animate-in fade-in duration-500 z-20">
+                                <div className="bg-white p-4 rounded-full shadow-xl shadow-blue-100 mb-4 relative">
+                                    <div className="absolute inset-0 bg-blue-50 rounded-full animate-ping opacity-75"></div>
+                                    <Loader2 className="w-8 h-8 text-blue-600 animate-spin relative z-10" />
                                 </div>
-                                <span className="text-sm font-bold text-slate-500">AI is drafting steps...</span>
+                                <span className="text-sm font-bold text-slate-600 animate-pulse">AI is drafting steps...</span>
                             </div>
                         )}
 
                         {/* Steps List */}
-                        {draftSteps.map((step, index) => (
+                        {!isSuggesting && draftSteps.map((step, index) => (
                             <StepCard
                                 key={step.stepId || index}
                                 step={step}
                                 index={index}
-                                // SIDE 모드에서는 편집 불가
                                 isEditing={editingStepId === step.stepId && !isSideMode}
                                 tempStep={tempStep}
                                 onEditStart={() => !isSideMode && startEditing(step.stepId, step)}
@@ -184,13 +191,12 @@ export function OutlinerPanel({ process, onTransform, initialTopic = '', mode = 
                                 onSave={saveStep}
                                 onCancel={cancelStep}
                                 onDelete={() => deleteStep(step.stepId)}
-                                // Handlers
                                 onAddBefore={() => addStep(index)}
                                 onAddAfter={() => addStep(index + 1)}
                                 isLast={index === draftSteps.length - 1}
-                                // AI Auto-Fill
                                 onAutoFill={() => autoFillStep(index)}
                                 isStepSuggesting={isStepSuggesting}
+                                readOnly={isReadOnly} // [Fix] Pass readOnly prop
                             />
                         ))}
 

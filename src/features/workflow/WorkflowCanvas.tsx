@@ -1,9 +1,10 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react'; // [Change] Import useState
 import ReactFlow, {
     Background,
     Controls,
     MiniMap,
-    ReactFlowProvider, // [New] Provider 추가
+    ReactFlowProvider,
+    Panel // [New] Import Panel for Lock Toggle
 } from 'reactflow';
 import type { Node, NodeTypes } from 'reactflow';
 import { useWorkflowStore } from '../../store/useWorkflowStore';
@@ -15,8 +16,9 @@ import {
     EndNode,
     SwimlaneNode
 } from './nodes/CustomNodes';
-import { AnalysisConsole } from './components/AnalysisConsole'; // [New] Import
+import { AnalysisConsole } from './components/AnalysisConsole';
 import 'reactflow/dist/style.css';
+import { Lock, Unlock } from 'lucide-react'; // [New] Icons
 
 const nodeTypes: NodeTypes = {
     USER_TASK: UserTaskNode,
@@ -31,9 +33,11 @@ interface WorkflowCanvasProps {
     onNodeClick?: (event: React.MouseEvent, node: Node) => void;
 }
 
-// ReactFlowProvider로 감싸기 위한 내부 컴포넌트
 const FlowContent = ({ onNodeClick }: WorkflowCanvasProps) => {
     const { nodes, edges, onNodesChange, onEdgesChange, onConnect } = useWorkflowStore();
+
+    // [New] Canvas Interaction Lock State (Default: Locked)
+    const [isLocked, setIsLocked] = useState(true);
 
     const handleNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
         if (onNodeClick) {
@@ -56,6 +60,13 @@ const FlowContent = ({ onNodeClick }: WorkflowCanvasProps) => {
                 snapToGrid={true}
                 snapGrid={[15, 15]}
                 onNodeClick={handleNodeClick}
+
+                // [New] Conditional Interactivity Props
+                nodesDraggable={!isLocked}
+                nodesConnectable={!isLocked}
+                elementsSelectable={true} // Allow selection for clicking, but drag/connect is controlled
+                panOnDrag={true} // Always allow panning
+                zoomOnScroll={true} // Always allow zooming
             >
                 <Background gap={20} size={1} color="#e2e8f0" />
                 <Controls />
@@ -67,9 +78,20 @@ const FlowContent = ({ onNodeClick }: WorkflowCanvasProps) => {
                         return '#3b82f6';
                     }}
                 />
+
+                {/* [New] Lock Toggle Button */}
+                <Panel position="top-right" className="bg-white p-2 rounded-lg shadow-md border border-slate-100">
+                    <button
+                        onClick={() => setIsLocked(!isLocked)}
+                        className="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-blue-600 transition-colors"
+                        title={isLocked ? "Unlock Canvas to Edit" : "Lock Canvas"}
+                    >
+                        {isLocked ? <Lock size={16} /> : <Unlock size={16} />}
+                        <span>{isLocked ? "Locked" : "Editing"}</span>
+                    </button>
+                </Panel>
             </ReactFlow>
 
-            {/* [New] 하단 중앙 플로팅 콘솔 추가 */}
             <AnalysisConsole />
         </>
     );

@@ -1,5 +1,5 @@
 import { client } from './client';
-import type { JobStatus, SuggestionResponse, ProcessDefinition, ProcessStep, AnalysisResult, FormDefinitions } from '../types/workflow';
+import type { JobStatus, SuggestionResponse, ProcessDefinition, ProcessStep, AnalysisResult, FormDefinitions, DataEntitiesResponse, FormResponse } from '../types/workflow';
 
 /**
  * 1. 프로세스 생성 요청 (Mode A: Quick Start)
@@ -43,12 +43,11 @@ export const suggestNextSteps = async (
     focusNodeId: string,
     jobId: string
 ) => {
-    // AI 추론은 시간이 걸릴 수 있으므로 30초 타임아웃 설정
-    const { data } = await client.post<SuggestionResponse>(
-        '/copilot/suggest/graph',
-        { currentGraphJson, focusNodeId, jobId },
-        { timeout: 30000 }
-    );
+    const { data } = await client.post<SuggestionResponse>('/copilot/suggest/graph', {
+        currentGraphJson,
+        focusNodeId,
+        jobId,
+    });
     return data;
 };
 
@@ -94,15 +93,49 @@ export const analyzeProcess = async (graphSnapshot: any) => {
 };
 
 /**
- * 7. [New] 폼 생성 제안 요청
+ * 7. [New] 폼 생성 제안 요청 (Manual Prompt)
  * POST /api/copilot/suggest/form
- * [Fix] AI 생성이 오래 걸릴 수 있으므로 타임아웃을 60초로 설정
  */
 export const suggestFormDefinition = async (prompt: string) => {
-    const { data } = await client.post<FormDefinitions>(
-        '/copilot/suggest/form',
-        { prompt },
-        { timeout: 60000 } // 60s Timeout Override
+    const { data } = await client.post<FormDefinitions>('/copilot/suggest/form', { prompt });
+    return data;
+};
+
+/**
+ * 8. 데이터 엔티티 자동 분석 및 제안 요청
+ * POST /api/copilot/suggest/data-model/auto-discovery
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const suggestAutoDiscovery = async (processContext: any, existingEntities: any[]) => {
+    const { data } = await client.post<DataEntitiesResponse>(
+        '/copilot/suggest/data-model/auto-discovery',
+        {
+            processContext,
+            existingEntities
+        },
+        {
+            timeout: 60000
+        }
+    );
+    return data;
+};
+
+/**
+ * 9. [New] 폼 자동 분석 및 제안 요청
+ * POST /api/copilot/suggest/form/auto-discovery
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const suggestFormAutoDiscovery = async (processContext: any, existingEntities: any[], existingForms: any[]) => {
+    const { data } = await client.post<FormResponse>(
+        '/copilot/suggest/form/auto-discovery',
+        {
+            processContext,
+            existingEntities,
+            existingForms
+        },
+        {
+            timeout: 60000
+        }
     );
     return data;
 };
