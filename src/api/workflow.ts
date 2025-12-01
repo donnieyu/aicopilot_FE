@@ -93,7 +93,21 @@ export const analyzeProcess = async (graphSnapshot: any) => {
 };
 
 /**
- * 7. [New] 폼 생성 제안 요청 (Manual Prompt)
+ * 7. [The Fixer] 에러 수정 요청 (Simulate Fix)
+ * POST /api/copilot/analyze/fix
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const fixProcessGraph = async (graphSnapshot: any, error: AnalysisResult) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await client.post<{ nodes: any[], edges: any[] }>('/copilot/analyze/fix', {
+        graphSnapshot,
+        error
+    });
+    return data;
+};
+
+/**
+ * 8. 폼 생성 제안 요청 (Manual Prompt)
  * POST /api/copilot/suggest/form
  */
 export const suggestFormDefinition = async (prompt: string) => {
@@ -102,7 +116,7 @@ export const suggestFormDefinition = async (prompt: string) => {
 };
 
 /**
- * 8. 데이터 엔티티 자동 분석 및 제안 요청
+ * 9. 데이터 엔티티 자동 분석 및 제안 요청
  * POST /api/copilot/suggest/data-model/auto-discovery
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -121,7 +135,7 @@ export const suggestAutoDiscovery = async (processContext: any, existingEntities
 };
 
 /**
- * 9. [New] 폼 자동 분석 및 제안 요청
+ * 10. 폼 자동 분석 및 제안 요청
  * POST /api/copilot/suggest/form/auto-discovery
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
