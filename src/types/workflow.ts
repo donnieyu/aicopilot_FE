@@ -31,6 +31,26 @@ export interface BranchCondition {
     targetActivityId: string;
 }
 
+// ----------------------------------------------------------------------
+// [NEW] Asset Traceability Types
+// ----------------------------------------------------------------------
+
+export interface SourceRect {
+    x: number; // Percentage (0-100)
+    y: number; // Percentage (0-100)
+    w: number; // Percentage (0-100)
+    h: number; // Percentage (0-100)
+}
+
+export interface SourceReference {
+    fileId: string;       // 업로드된 파일 ID
+    pageIndex: number;    // 페이지 번호 (이미지는 0)
+    rects: SourceRect[];  // 정규화된 좌표 리스트
+    confidence: number;   // AI 확신도 (0.0 - 1.0)
+    snippet?: string;     // 추출된 텍스트 원문 (OCR 결과)
+    reason?: string;      // [New] 확신도 근거 (e.g., "Text is clear")
+}
+
 /**
  * Java Record: Activity (Node)
  */
@@ -45,6 +65,9 @@ export interface Activity {
     position?: { x: number; y: number };
     nextActivityId?: string;
     layoutDirection?: 'LR' | 'TB';
+
+    // [New] 출처 매핑 정보
+    sourceRef?: SourceReference;
 }
 
 /**
@@ -76,6 +99,9 @@ export interface ProcessStep {
     role: string;
     description: string;
     type: 'ACTION' | 'DECISION';
+
+    // [New] Outliner 단계에서도 출처 추적 가능
+    sourceRef?: SourceReference;
 }
 
 export interface ProcessDefinition {

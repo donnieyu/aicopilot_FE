@@ -18,7 +18,8 @@ import type { ProcessDefinition } from '../../../types/workflow';
 
 interface LandingPageProps {
     onStart: (topic: string, description?: string) => void;
-    onStartFromAsset: (definition: ProcessDefinition) => void;
+    // [Updated] Asset Viewer 연동을 위해 fileUrl 매개변수 추가
+    onStartFromAsset: (definition: ProcessDefinition, fileUrl?: string) => void;
 }
 
 // 프리셋 데이터 정의 (아이콘, 색상, 설명 포함)
@@ -209,9 +210,10 @@ export function LandingPage({ onStart, onStartFromAsset }: LandingPageProps) {
             {isUploadModalOpen && (
                 <AssetUploadModal
                     onClose={() => setUploadModalOpen(false)}
-                    onAnalyzeComplete={(definition) => {
+                    // [Updated] onAnalyzeComplete에서 fileUrl을 받아 상위로 전달하도록 수정
+                    onAnalyzeComplete={(definition, fileUrl) => {
                         setUploadModalOpen(false);
-                        onStartFromAsset(definition);
+                        onStartFromAsset(definition, fileUrl);
                     }}
                 />
             )}

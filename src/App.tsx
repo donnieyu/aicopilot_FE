@@ -13,16 +13,17 @@ import { WorkflowHeader } from './features/workflow/components/WorkflowHeader';
 import { NodeConfigPanel } from './features/workflow/components/NodeConfigPanel';
 import { DataDictionaryPanel } from './features/workflow/components/DataDictionaryPanel';
 import { FormListPanel } from './features/workflow/components/FormListPanel';
+import { AssetViewer } from './features/workflow/components/asset/AssetViewer'; // [New] Import
 import clsx from 'clsx';
 import type { NodeSuggestion, ProcessDefinition } from './types/workflow';
 import type { Node } from 'reactflow';
 import { useAutoAnalysis } from './hooks/useAutoAnalysis';
-import { Database, LayoutTemplate, Loader2, Sparkles } from 'lucide-react';
+import { Database, LayoutTemplate, Loader2, Sparkles, Split } from 'lucide-react'; // [New] Split Icon
 
 type WorkflowStep = 'LANDING' | 'OUTLINING' | 'VIEWING';
 type RightPanelTab = 'DATA' | 'FORM';
 
-// [New] Local Component for Right Panel Loading State
+// ... (RightPanelLoading component remains same) ...
 function RightPanelLoading({ message }: { message: string }) {
     return (
         <div className="flex flex-col items-center justify-center h-full p-8 text-center animate-in fade-in duration-500">
@@ -54,7 +55,9 @@ function App() {
     const [suggestions, setSuggestions] = useState<NodeSuggestion[]>([]);
     const [showSuggestionPanel, setShowSuggestionPanel] = useState(false);
 
-    const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+    // [Refactor] Use store's selectedNodeId instead of local state
+    // const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+
     const [activeTab, setActiveTab] = useState<RightPanelTab>('DATA');
 
     const {
@@ -69,11 +72,21 @@ function App() {
         isCompleted
     } = useWorkflowGenerator();
 
+    // Store Selectors
+    const selectedNodeId = useWorkflowStore((state) => state.selectedNodeId);
+    const selectNode = useWorkflowStore((state) => state.selectNode);
     const setProcess = useWorkflowStore((state) => state.setProcess);
     const setDataModel = useWorkflowStore((state) => state.setDataModel);
     const setFormDefinitions = useWorkflowStore((state) => state.setFormDefinitions);
     const applySuggestion = useWorkflowStore((state) => state.applySuggestion);
     const resetWorkflow = useWorkflowStore((state) => state.reset);
+
+    // [New] Asset State Selectors
+    const viewMode = useWorkflowStore((state) => state.viewMode);
+    const setViewMode = useWorkflowStore((state) => state.setViewMode);
+    const assetUrl = useWorkflowStore((state) => state.assetUrl);
+    const setAssetUrl = useWorkflowStore((state) => state.setAssetUrl);
+    const setProcessMetadata = useWorkflowStore((state) => state.setProcessMetadata); // [New] Import
 
     // Access store data to check if empty
     const dataEntities = useWorkflowStore((state) => state.dataEntities);
@@ -105,14 +118,26 @@ function App() {
         setInitialTopic(topic);
         setInitialDescription(description || '');
         setStep('OUTLINING');
+        setViewMode('DEFAULT'); // Reset View Mode
     };
 
-    // [Updated] Asset으로부터 시작: 바로 맵 생성(Transformation)으로 진입
-    const handleStartFromAsset = (definition: ProcessDefinition) => {
+    // [Updated] Asset으로부터 시작: AssetURL 설정, ViewMode 전환, Metadata 설정
+    const handleStartFromAsset = (definition: ProcessDefinition, fileUrl?: string) => {
         resetWorkflow();
+
+        // 1. Topic & Description 설정
         setInitialTopic(definition.topic);
+        setProcessMetadata(definition.topic, definition.steps.map(s => s.description).join(" ")); // [Updated]
+
+        // 2. Asset Mode 활성화
+        if (fileUrl) {
+            setAssetUrl(fileUrl);
+            setViewMode('VERIFICATION');
+        }
+
+        // 3. 변환 시작
         startTransformation(definition);
-        setStep('VIEWING'); // Outliner 건너뛰기
+        setStep('VIEWING');
     };
 
     const handleTransform = (definition: ProcessDefinition) => {
@@ -122,13 +147,13 @@ function App() {
 
     const handleNodeClick = (_event: MouseEvent, node: Node) => {
         if (selectedNodeId === node.id) return;
-        setSelectedNodeId(node.id);
+        selectNode(node.id); // [Updated] Use Store Action
         setShowSuggestionPanel(false);
         setSuggestions([]);
     };
 
     const handlePaneClick = () => {
-        setSelectedNodeId(null);
+        selectNode(null); // [Updated] Use Store Action
     };
 
     const handleTriggerSuggestion = async () => {
@@ -172,7 +197,12 @@ function App() {
         return activeTab === 'DATA' ? <DataDictionaryPanel /> : <FormListPanel />;
     };
 
-    if (step === 'LANDING') return <LandingPage onStart={handleStartDrafting} onStartFromAsset={handleStartFromAsset} />;
+    if (step === 'LANDING') return (
+        <LandingPage
+            onStart={handleStartDrafting}
+            onStartFromAsset={(def, url) => handleStartFromAsset(def, url)}
+        />
+    );
 
     if (step === 'OUTLINING') {
         return (
@@ -193,8 +223,8 @@ function App() {
         );
     }
 
-    // [New] VIEWING 단계에서도 맵이 아직 생성 안되었거나 변환 중이면 오버레이 표시
     const showLoadingInView = isTransforming || (isProcessing && !isProcessReady);
+    const isSplitView = viewMode === 'VERIFICATION' && assetUrl;
 
     return (
         <div className="flex flex-col h-screen overflow-hidden bg-slate-50 relative">
@@ -212,8 +242,36 @@ function App() {
                 onOpenSideOutliner={() => setSideOutlinerOpen(true)}
             />
 
+            {/* MAIN CONTENT AREA */}
             <div className="flex-1 relative overflow-hidden bg-slate-50 flex">
-                <div className="flex-1 relative h-full">
+
+                {/* [A] LEFT PANEL (SPLIT VIEW ONLY) */}
+                {isSplitView && (
+                    <div className="w-[40%] h-full border-r border-slate-200 bg-slate-100 z-10 shadow-inner animate-in slide-in-from-left-4 duration-500">
+                        <AssetViewer fileUrl={assetUrl} />
+                    </div>
+                )}
+
+                {/* [B] CENTER CANVAS */}
+                <div className="flex-1 relative h-full transition-all duration-500">
+                    {/* View Mode Toggle (Floating) */}
+                    {assetUrl && (
+                        <div className="absolute top-4 left-4 z-10">
+                            <button
+                                onClick={() => setViewMode(viewMode === 'DEFAULT' ? 'VERIFICATION' : 'DEFAULT')}
+                                className={clsx(
+                                    "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold border shadow-sm transition-all",
+                                    viewMode === 'VERIFICATION'
+                                        ? "bg-indigo-600 text-white border-indigo-600"
+                                        : "bg-white text-slate-600 border-slate-200 hover:text-indigo-600"
+                                )}
+                            >
+                                <Split size={14} />
+                                {viewMode === 'VERIFICATION' ? 'Hide Asset' : 'Show Asset'}
+                            </button>
+                        </div>
+                    )}
+
                     <div className={clsx("w-full h-full transition-opacity duration-1000", isProcessReady ? "opacity-100" : "opacity-0")}>
                         <WorkflowCanvas onNodeClick={handleNodeClick} />
                         <div
@@ -224,6 +282,7 @@ function App() {
                     </div>
                 </div>
 
+                {/* [C] RIGHT SIDEBAR */}
                 <div className="w-[420px] h-full border-l border-slate-200 bg-white shadow-xl z-30 flex flex-col relative transition-all">
                     <div className={clsx(
                         "absolute inset-0 bg-white flex flex-col transition-opacity duration-300",
@@ -262,7 +321,7 @@ function App() {
                     <NodeConfigPanel
                         nodeId={selectedNodeId}
                         isOpen={!!selectedNodeId}
-                        onClose={() => setSelectedNodeId(null)}
+                        onClose={() => selectNode(null)}
                         onTriggerSuggestion={handleTriggerSuggestion}
                     />
                 </div>

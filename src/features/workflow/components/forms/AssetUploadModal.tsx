@@ -2,13 +2,13 @@ import { useState } from 'react';
 import { X, UploadCloud, FileSpreadsheet, FileImage, FileText, Sparkles } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { AiActionButton } from '../../../../components/AiActionButton';
-import { analyzeAsset } from '../../../../api/workflow'; // [New] Import
-import type { ProcessDefinition } from '../../../../types/workflow'; // [New] Import
+import { analyzeAsset } from '../../../../api/workflow';
+import type { ProcessDefinition } from '../../../../types/workflow';
 
 interface AssetUploadModalProps {
     onClose: () => void;
     // [Updated] 콜백 시그니처 변경: topic/desc 문자열 대신 완전한 정의 객체 전달
-    onAnalyzeComplete: (definition: ProcessDefinition) => void;
+    onAnalyzeComplete: (definition: ProcessDefinition, fileUrl?: string) => void;
 }
 
 export function AssetUploadModal({ onClose, onAnalyzeComplete }: AssetUploadModalProps) {
@@ -20,7 +20,8 @@ export function AssetUploadModal({ onClose, onAnalyzeComplete }: AssetUploadModa
         mutationFn: analyzeAsset,
         onSuccess: (data) => {
             // data는 이제 { topic: string, steps: ProcessStep[] } 형태의 ProcessDefinition입니다.
-            onAnalyzeComplete(data);
+            // 성공 시 미리보기 URL(또는 업로드된 URL)도 함께 전달
+            onAnalyzeComplete(data, previewUrl || undefined);
         },
         onError: (err) => {
             console.error(err);

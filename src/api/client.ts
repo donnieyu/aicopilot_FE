@@ -6,7 +6,7 @@ export const client = axios.create({
     headers: {
         'Content-Type': 'application/json',
     },
-    timeout: 10000, // 10초 타임아웃
+    timeout: 60000, // [Change] 기본 타임아웃을 10초 -> 60초로 증가
 });
 
 // 응답 인터셉터 (에러 핸들링 용이성)

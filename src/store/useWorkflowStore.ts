@@ -22,7 +22,9 @@ import type {
     DataEntity,
     AnalysisResult,
     DataEntitiesGroup,
-    FormDefinitions
+    FormDefinitions,
+    // [New] Import
+    SourceReference
 } from '../types/workflow';
 import { getLayoutedElements } from './layoutUtils';
 import type { LayoutDirection } from './layoutUtils';
@@ -42,16 +44,22 @@ interface WorkflowState {
     analysisResults: Record<string, AnalysisResult[]>;
     selectedEdgeId: string | null;
 
+    // [New] Asset & Traceability State
+    viewMode: 'DEFAULT' | 'VERIFICATION';
+    assetUrl: string | null; // 업로드된 원본 이미지 URL
+    selectedNodeId: string | null; // ReactFlow에서 선택된 노드 ID (기존과 통합)
+    selectedSourceRegion: SourceReference | null; // 문서 뷰어에서 선택된 영역
+
     // Actions
     setProcess: (process: ProcessResponse) => void;
     setGraph: (nodes: Node[], edges: Edge[]) => void;
 
     setDataModel: (entities: DataEntity[], groups: DataEntitiesGroup[]) => void;
-
     addDataEntity: (entity: DataEntity) => void;
 
     setFormDefinitions: (forms: FormDefinitions[]) => void;
     addFormDefinition: (form: FormDefinitions) => void;
+
     setLayoutDirection: (direction: LayoutDirection) => void;
     refreshLayout: (process: ProcessResponse) => void;
     applySuggestion: (suggestion: NodeSuggestion, sourceNodeId: string) => void;
@@ -62,6 +70,13 @@ interface WorkflowState {
     updateEdgeLabel: (edgeId: string, label: string) => void;
     setAnalysisResults: (results: AnalysisResult[]) => void;
     clearAnalysisResults: () => void;
+
+    // [New] Asset & Traceability Actions
+    setViewMode: (mode: 'DEFAULT' | 'VERIFICATION') => void;
+    setAssetUrl: (url: string | null) => void;
+    selectNode: (nodeId: string | null) => void; // Node 선택 시 -> Source Highlight
+    selectSourceRegion: (ref: SourceReference | null) => void; // Source 선택 시 -> Node Highlight
+    setProcessMetadata: (name: string, description: string) => void;
 
     reset: () => void;
 
@@ -260,6 +275,12 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     analysisResults: {},
     selectedEdgeId: null,
 
+    // [New] Asset State Init
+    viewMode: 'DEFAULT',
+    assetUrl: null,
+    selectedNodeId: null,
+    selectedSourceRegion: null,
+
     setProcess: (process: ProcessResponse) => {
         const direction = get().layoutDirection;
         const { nodes, edges } = calculateLayout(process, direction);
@@ -274,18 +295,16 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
         });
     },
 
-    // [Fix] setGraph: 스마트 레이아웃 적용 (스윔레인 복원 및 Dagre 재계산)
     setGraph: (newNodes, newEdges) => {
         const { layoutDirection, currentProcess } = get();
         if (!currentProcess) return;
 
-        // 1. AI가 반환한 노드 중 'Activity' 노드만 추출 (User, Service, Gateway)
-        // (START, END, SWIMLANE은 기존 구조 기반으로 재생성하여 일관성 유지)
+        // 1. Activity Nodes Filter
         const activityNodes = newNodes.filter(n =>
             ['USER_TASK', 'SERVICE_TASK', 'EXCLUSIVE_GATEWAY'].includes(n.type || '')
         );
 
-        // 2. 기존 Process 구조에서 Swimlane 정보 복원
+        // 2. Reconstruct Infrastructure
         const infrastructureNodes: Node[] = [];
 
         currentProcess.swimlanes.forEach((lane) => {
@@ -299,8 +318,7 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
             });
         });
 
-        // 3. Start/End 노드 처리 (AI가 반환했으면 유지, 없으면 재생성)
-        // Start
+        // 3. Start/End Reconstruct
         const existingStart = newNodes.find(n => n.type === 'START');
         if (existingStart) {
             infrastructureNodes.push({ ...existingStart, data: { ...existingStart.data, layoutDirection } });
@@ -313,7 +331,6 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
             });
         }
 
-        // End
         const existingEnd = newNodes.find(n => n.type === 'END');
         if (existingEnd) {
             infrastructureNodes.push({ ...existingEnd, data: { ...existingEnd.data, layoutDirection } });
@@ -326,10 +343,8 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
             });
         }
 
-        // 4. 노드 합치기 및 레이아웃 재계산
+        // 4. Combine & Layout
         const nodesToLayout = [...infrastructureNodes, ...activityNodes];
-
-        // activityNodes의 data.layoutDirection 동기화
         nodesToLayout.forEach(n => {
             if (n.data) n.data.layoutDirection = layoutDirection;
         });
@@ -489,9 +504,28 @@ export const useWorkflowStore = create<WorkflowState>((set, get) => ({
     },
 
     clearAnalysisResults: () => set({ analysisResults: {} }),
+
+    // [New] Asset & Traceability Actions Implementation
+    setViewMode: (mode) => set({ viewMode: mode }),
+    setAssetUrl: (url) => set({ assetUrl: url }),
+
+    // Node 선택 -> 해당하는 Source Region 찾아서 Highlight
+    selectNode: (nodeId) => {
+        set({ selectedNodeId: nodeId });
+    },
+
+    // Source 선택 -> 해당하는 Node 찾아서 Highlight
+    selectSourceRegion: (ref) => {
+        set({ selectedSourceRegion: ref });
+    },
+
+    setProcessMetadata: (name, description) => set({ processMetadata: { name, description } }),
+
     reset: () => set({
         nodes: [], edges: [], processMetadata: null, currentProcess: null,
-        dataEntities: [], dataGroups: [], formDefinitions: [], analysisResults: {}, selectedEdgeId: null
+        dataEntities: [], dataGroups: [], formDefinitions: [], analysisResults: {}, selectedEdgeId: null,
+        // Reset Asset State
+        viewMode: 'DEFAULT', assetUrl: null, selectedNodeId: null, selectedSourceRegion: null
     }),
 
     onNodesChange: (changes) => set({ nodes: applyNodeChanges(changes, get().nodes) }),
