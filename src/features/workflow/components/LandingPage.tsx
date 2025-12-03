@@ -14,11 +14,10 @@ import {
 import { useState } from 'react';
 import clsx from 'clsx';
 import { AssetUploadModal } from './forms/AssetUploadModal';
-import type { ProcessDefinition } from '../../../types/workflow'; // [New]
+import type { ProcessDefinition } from '../../../types/workflow';
 
 interface LandingPageProps {
     onStart: (topic: string, description?: string) => void;
-    // [New] Asset으로부터 시작하는 핸들러 (ProcessDefinition 전체 수신)
     onStartFromAsset: (definition: ProcessDefinition) => void;
 }
 
@@ -101,10 +100,10 @@ export function LandingPage({ onStart, onStartFromAsset }: LandingPageProps) {
                 <div className="absolute top-[40%] -right-[10%] w-[50%] h-[50%] bg-indigo-100/40 rounded-full blur-3xl opacity-60 animate-pulse" style={{ animationDelay: '2s' }}></div>
             </div>
 
-            <div className="w-full max-w-5xl z-10 flex flex-col items-center space-y-12 animate-in fade-in zoom-in duration-700">
+            <div className="w-full max-w-6xl z-10 flex flex-col items-center space-y-10 animate-in fade-in zoom-in duration-700">
 
                 {/* 1. Hero Header */}
-                <div className="text-center space-y-6 max-w-2xl">
+                <div className="text-center space-y-4 max-w-2xl">
                     <div className="inline-flex items-center justify-center p-4 bg-white rounded-2xl shadow-lg shadow-blue-100/50 mb-2 border border-slate-100">
                         <Wand2 className="w-10 h-10 text-blue-600" />
                     </div>
@@ -113,73 +112,95 @@ export function LandingPage({ onStart, onStartFromAsset }: LandingPageProps) {
                         <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-indigo-600">architect today?</span>
                     </h1>
                     <p className="text-lg text-slate-500 leading-relaxed">
-                        Select a template, start from scratch, <br className="hidden md:block"/>
-                        or <b>upload existing assets</b> to analyze.
+                        Select a template below to start drafting immediately.
                     </p>
                 </div>
 
-                {/* 2. Bento Grid Selection */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 w-full">
-                    {/* Start from Assets Button */}
-                    <button
-                        onClick={() => setUploadModalOpen(true)}
-                        className="group flex flex-col items-center justify-center p-5 bg-gradient-to-br from-indigo-50 to-white rounded-2xl border-2 border-indigo-100 hover:border-indigo-400 hover:shadow-lg transition-all duration-300 text-center min-h-[100px] relative overflow-hidden"
-                    >
-                        <div className="absolute top-0 right-0 bg-indigo-600 text-white text-[9px] font-bold px-2 py-1 rounded-bl-xl">BETA</div>
-                        <div className="p-3 bg-white rounded-full shadow-sm mb-3 group-hover:scale-110 transition-transform text-indigo-600">
-                            <UploadCloud className="w-6 h-6" />
-                        </div>
-                        <h3 className="font-bold text-slate-800 group-hover:text-indigo-700">
-                            Start from Assets
-                        </h3>
-                        <p className="text-xs text-slate-400 mt-1">
-                            Upload Image / Excel / PDF
-                        </p>
-                    </button>
-
-                    {/* Start from Scratch */}
-                    <button
-                        onClick={() => onStart('', '')}
-                        className="group flex flex-col items-center justify-center p-5 bg-white rounded-2xl border-2 border-dashed border-slate-200 hover:border-blue-400 hover:bg-blue-50/30 transition-all duration-300 text-center min-h-[100px]"
-                    >
-                        <div className="p-3 bg-slate-50 rounded-full shadow-sm mb-3 group-hover:scale-110 transition-transform">
-                            <Plus className="w-6 h-6 text-blue-600" />
-                        </div>
-                        <h3 className="font-bold text-slate-700 group-hover:text-blue-700">
-                            Start from Scratch
-                        </h3>
-                        <p className="text-xs text-slate-400 mt-1">
-                            Design a completely new process
-                        </p>
-                    </button>
-
+                {/* 2. Topic Preset Grid (Suggestions) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
                     {TOPIC_PRESETS.map((topic) => (
                         <button
                             key={topic.id}
                             onClick={() => onStart(topic.label, '')}
-                            className="group relative flex items-start p-5 bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:border-blue-100 transition-all duration-300 text-left hover:-translate-y-1"
+                            className="group relative flex flex-col items-start p-4 bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-xl hover:border-blue-100 transition-all duration-300 text-left hover:-translate-y-1"
                         >
-                            <div className={clsx("p-3 rounded-xl mr-4 transition-colors", topic.bg)}>
-                                <topic.icon className={clsx("w-6 h-6", topic.color)} />
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-slate-800 group-hover:text-blue-700 transition-colors">
+                            <div className="flex items-center gap-3 mb-2 w-full">
+                                <div className={clsx("p-2 rounded-xl transition-colors", topic.bg)}>
+                                    <topic.icon className={clsx("w-5 h-5", topic.color)} />
+                                </div>
+                                <h3 className="font-bold text-slate-800 text-sm group-hover:text-blue-700 transition-colors">
                                     {topic.label}
                                 </h3>
-                                <p className="text-xs text-slate-400 mt-1 group-hover:text-slate-500">
-                                    {topic.desc}
-                                </p>
                             </div>
+                            <p className="text-[11px] text-slate-400 group-hover:text-slate-500 leading-snug line-clamp-2">
+                                {topic.desc}
+                            </p>
                             {/* Hover Arrow */}
-                            <div className="absolute right-4 top-4 opacity-0 group-hover:opacity-100 transition-opacity text-blue-400">
+                            <div className="absolute right-3 top-3 opacity-0 group-hover:opacity-100 transition-opacity text-blue-400">
                                 <ArrowRightIcon />
                             </div>
                         </button>
                     ))}
                 </div>
 
-                {/* 3. Footer Message */}
-                <p className="text-xs font-medium text-slate-400 uppercase tracking-widest">
+                {/* Divider with Text */}
+                <div className="relative w-full max-w-2xl py-2 flex items-center justify-center">
+                    <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-slate-200"></div>
+                    </div>
+                    <span className="relative bg-slate-50 px-4 text-xs font-bold text-slate-400 uppercase tracking-widest">
+                        Or Create Your Own
+                    </span>
+                </div>
+
+                {/* 3. Main Action Buttons (Assets & Scratch) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full max-w-3xl">
+                    {/* Start from Assets */}
+                    <button
+                        onClick={() => setUploadModalOpen(true)}
+                        className="group flex items-center justify-between p-6 bg-white rounded-2xl border-2 border-indigo-100 hover:border-indigo-400 hover:shadow-xl transition-all duration-300 text-left relative overflow-hidden"
+                    >
+                        <div className="flex items-center gap-5">
+                            <div className="p-3.5 bg-indigo-50 rounded-full shadow-sm group-hover:scale-110 transition-transform text-indigo-600">
+                                <UploadCloud className="w-7 h-7" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-slate-800 text-lg group-hover:text-indigo-700">
+                                    Start from Assets
+                                </h3>
+                                <p className="text-sm text-slate-400 mt-1 font-medium">
+                                    Analyze Image / Excel / PDF
+                                </p>
+                            </div>
+                        </div>
+                        <div className="absolute top-0 right-0 bg-indigo-600 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl">
+                            AI POWERED
+                        </div>
+                    </button>
+
+                    {/* Start from Scratch */}
+                    <button
+                        onClick={() => onStart('', '')}
+                        className="group flex items-center justify-between p-6 bg-white rounded-2xl border-2 border-dashed border-slate-300 hover:border-blue-400 hover:bg-blue-50/30 transition-all duration-300 text-left"
+                    >
+                        <div className="flex items-center gap-5">
+                            <div className="p-3.5 bg-slate-50 rounded-full shadow-sm group-hover:scale-110 transition-transform text-slate-400 group-hover:text-blue-600">
+                                <Plus className="w-7 h-7" />
+                            </div>
+                            <div>
+                                <h3 className="font-bold text-slate-700 text-lg group-hover:text-blue-700">
+                                    Start from Scratch
+                                </h3>
+                                <p className="text-sm text-slate-400 mt-1 font-medium">
+                                    Design a custom process
+                                </p>
+                            </div>
+                        </div>
+                    </button>
+                </div>
+
+                {/* 4. Footer Message */}
+                <p className="text-xs font-medium text-slate-400 uppercase tracking-widest pt-4">
                     Powered by AI Workflow Engine Ver 8.2
                 </p>
             </div>
