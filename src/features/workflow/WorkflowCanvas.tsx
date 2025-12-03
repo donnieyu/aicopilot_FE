@@ -1,10 +1,10 @@
-import { useCallback, useState } from 'react'; // [Change] Import useState
+import { useCallback, useState } from 'react';
 import ReactFlow, {
     Background,
     Controls,
     MiniMap,
     ReactFlowProvider,
-    Panel // [New] Import Panel for Lock Toggle
+    Panel
 } from 'reactflow';
 import type { Node, NodeTypes } from 'reactflow';
 import { useWorkflowStore } from '../../store/useWorkflowStore';
@@ -18,7 +18,8 @@ import {
 } from './nodes/CustomNodes';
 import { AnalysisConsole } from './components/AnalysisConsole';
 import 'reactflow/dist/style.css';
-import { Lock, Unlock } from 'lucide-react'; // [New] Icons
+import { Lock, Unlock } from 'lucide-react';
+import clsx from 'clsx';
 
 const nodeTypes: NodeTypes = {
     USER_TASK: UserTaskNode,
@@ -36,7 +37,7 @@ interface WorkflowCanvasProps {
 const FlowContent = ({ onNodeClick }: WorkflowCanvasProps) => {
     const { nodes, edges, onNodesChange, onEdgesChange, onConnect } = useWorkflowStore();
 
-    // [New] Canvas Interaction Lock State (Default: Locked)
+    // Canvas Interaction Lock State
     const [isLocked, setIsLocked] = useState(true);
 
     const handleNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
@@ -61,12 +62,12 @@ const FlowContent = ({ onNodeClick }: WorkflowCanvasProps) => {
                 snapGrid={[15, 15]}
                 onNodeClick={handleNodeClick}
 
-                // [New] Conditional Interactivity Props
+                // Conditional Interactivity Props
                 nodesDraggable={!isLocked}
                 nodesConnectable={!isLocked}
-                elementsSelectable={true} // Allow selection for clicking, but drag/connect is controlled
-                panOnDrag={true} // Always allow panning
-                zoomOnScroll={true} // Always allow zooming
+                elementsSelectable={true}
+                panOnDrag={true}
+                zoomOnScroll={true}
             >
                 <Background gap={20} size={1} color="#e2e8f0" />
                 <Controls />
@@ -79,15 +80,29 @@ const FlowContent = ({ onNodeClick }: WorkflowCanvasProps) => {
                     }}
                 />
 
-                {/* [New] Lock Toggle Button */}
-                <Panel position="top-right" className="bg-white p-2 rounded-lg shadow-md border border-slate-100">
+                {/* [Changed] Lock Toggle Button Moved to Top-Center */}
+                <Panel position="top-center" className="bg-white/90 backdrop-blur-sm p-1.5 rounded-full shadow-lg border border-slate-200 mt-4 flex gap-1">
                     <button
-                        onClick={() => setIsLocked(!isLocked)}
-                        className="flex items-center gap-2 text-xs font-bold text-slate-600 hover:text-blue-600 transition-colors"
-                        title={isLocked ? "Unlock Canvas to Edit" : "Lock Canvas"}
+                        onClick={() => setIsLocked(true)}
+                        className={clsx(
+                            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all",
+                            isLocked ? "bg-slate-800 text-white shadow-sm" : "text-slate-500 hover:bg-slate-100"
+                        )}
+                        title="View Mode (Locked)"
                     >
-                        {isLocked ? <Lock size={16} /> : <Unlock size={16} />}
-                        <span>{isLocked ? "Locked" : "Editing"}</span>
+                        <Lock size={12} />
+                        <span>Locked</span>
+                    </button>
+                    <button
+                        onClick={() => setIsLocked(false)}
+                        className={clsx(
+                            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all",
+                            !isLocked ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-100"
+                        )}
+                        title="Edit Mode (Unlocked)"
+                    >
+                        <Unlock size={12} />
+                        <span>Edit</span>
                     </button>
                 </Panel>
             </ReactFlow>

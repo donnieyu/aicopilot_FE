@@ -13,17 +13,17 @@ import { WorkflowHeader } from './features/workflow/components/WorkflowHeader';
 import { NodeConfigPanel } from './features/workflow/components/NodeConfigPanel';
 import { DataDictionaryPanel } from './features/workflow/components/DataDictionaryPanel';
 import { FormListPanel } from './features/workflow/components/FormListPanel';
-import { AssetViewer } from './features/workflow/components/asset/AssetViewer'; // [New] Import
+import { AssetViewer } from './features/workflow/components/asset/AssetViewer';
 import clsx from 'clsx';
 import type { NodeSuggestion, ProcessDefinition } from './types/workflow';
 import type { Node } from 'reactflow';
 import { useAutoAnalysis } from './hooks/useAutoAnalysis';
-import { Database, LayoutTemplate, Loader2, Sparkles, Split } from 'lucide-react'; // [New] Split Icon
+import { Database, LayoutTemplate, Loader2, Sparkles, Split, PanelRightOpen, PanelRightClose } from 'lucide-react';
 
 type WorkflowStep = 'LANDING' | 'OUTLINING' | 'VIEWING';
 type RightPanelTab = 'DATA' | 'FORM';
 
-// ... (RightPanelLoading component remains same) ...
+// [New] Local Component for Right Panel Loading State
 function RightPanelLoading({ message }: { message: string }) {
     return (
         <div className="flex flex-col items-center justify-center h-full p-8 text-center animate-in fade-in duration-500">
@@ -52,11 +52,11 @@ function App() {
     const [isInspectorOpen, setInspectorOpen] = useState(false);
     const [isSideOutlinerOpen, setSideOutlinerOpen] = useState(false);
 
+    // [New] Right Panel Toggle State (Default: Open)
+    const [isRightPanelOpen, setRightPanelOpen] = useState(true);
+
     const [suggestions, setSuggestions] = useState<NodeSuggestion[]>([]);
     const [showSuggestionPanel, setShowSuggestionPanel] = useState(false);
-
-    // [Refactor] Use store's selectedNodeId instead of local state
-    // const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
 
     const [activeTab, setActiveTab] = useState<RightPanelTab>('DATA');
 
@@ -86,7 +86,7 @@ function App() {
     const setViewMode = useWorkflowStore((state) => state.setViewMode);
     const assetUrl = useWorkflowStore((state) => state.assetUrl);
     const setAssetUrl = useWorkflowStore((state) => state.setAssetUrl);
-    const setProcessMetadata = useWorkflowStore((state) => state.setProcessMetadata); // [New] Import
+    const setProcessMetadata = useWorkflowStore((state) => state.setProcessMetadata);
 
     // Access store data to check if empty
     const dataEntities = useWorkflowStore((state) => state.dataEntities);
@@ -127,7 +127,7 @@ function App() {
 
         // 1. Topic & Description 설정
         setInitialTopic(definition.topic);
-        setProcessMetadata(definition.topic, definition.steps.map(s => s.description).join(" ")); // [Updated]
+        setProcessMetadata(definition.topic, definition.steps.map(s => s.description).join(" "));
 
         // 2. Asset Mode 활성화
         if (fileUrl) {
@@ -145,11 +145,17 @@ function App() {
         startTransformation(definition);
     };
 
-    const handleNodeClick = (_event: MouseEvent, node: Node) => {
+    // [Fix] Changed unused '_event' to '_' to resolve ESLint error
+    const handleNodeClick = (_: MouseEvent, node: Node) => {
         if (selectedNodeId === node.id) return;
         selectNode(node.id); // [Updated] Use Store Action
         setShowSuggestionPanel(false);
         setSuggestions([]);
+
+        // [New] If panel is closed, open it to show node config
+        if (!isRightPanelOpen) {
+            setRightPanelOpen(true);
+        }
     };
 
     const handlePaneClick = () => {
@@ -240,6 +246,7 @@ function App() {
                 isInspectorOpen={isInspectorOpen}
                 setInspectorOpen={setInspectorOpen}
                 onOpenSideOutliner={() => setSideOutlinerOpen(true)}
+                // [Cleaned] Removed unused props for right panel toggle
             />
 
             {/* MAIN CONTENT AREA */}
@@ -254,7 +261,7 @@ function App() {
 
                 {/* [B] CENTER CANVAS */}
                 <div className="flex-1 relative h-full transition-all duration-500">
-                    {/* View Mode Toggle (Floating) */}
+                    {/* View Mode Toggle (Floating Left) */}
                     {assetUrl && (
                         <div className="absolute top-4 left-4 z-10">
                             <button
@@ -272,6 +279,32 @@ function App() {
                         </div>
                     )}
 
+                    {/* [New] Right Panel Toggle Button (Floating Right) - Matching Design */}
+                    <div className="absolute top-4 right-4 z-20">
+                        <button
+                            onClick={() => setRightPanelOpen(!isRightPanelOpen)}
+                            className={clsx(
+                                "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold border shadow-sm transition-all",
+                                !isRightPanelOpen
+                                    ? "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700" // Open State (Hide Panel) -> White
+                                    : "bg-white text-slate-500 border-slate-200 hover:text-indigo-600 hover:border-indigo-300" // Closed State (Show Panel) -> Indigo
+                            )}
+                            title={isRightPanelOpen ? "Close Data & Forms Panel" : "Open Data & Forms Panel"}
+                        >
+                            {isRightPanelOpen ? (
+                                <>
+                                    <PanelRightClose size={14} />
+                                    <span>Hide Panel</span>
+                                </>
+                            ) : (
+                                <>
+                                    <PanelRightOpen size={14} />
+                                    <span>Show Panel</span>
+                                </>
+                            )}
+                        </button>
+                    </div>
+
                     <div className={clsx("w-full h-full transition-opacity duration-1000", isProcessReady ? "opacity-100" : "opacity-0")}>
                         <WorkflowCanvas onNodeClick={handleNodeClick} />
                         <div
@@ -283,12 +316,17 @@ function App() {
                 </div>
 
                 {/* [C] RIGHT SIDEBAR */}
-                <div className="w-[420px] h-full border-l border-slate-200 bg-white shadow-xl z-30 flex flex-col relative transition-all">
+                <div
+                    className={clsx(
+                        "h-full border-l border-slate-200 bg-white shadow-xl z-30 flex flex-col relative transition-all duration-300 ease-in-out",
+                        isRightPanelOpen ? "w-[420px] translate-x-0" : "w-0 translate-x-full opacity-0 overflow-hidden"
+                    )}
+                >
                     <div className={clsx(
                         "absolute inset-0 bg-white flex flex-col transition-opacity duration-300",
                         selectedNodeId ? "opacity-0 pointer-events-none" : "opacity-100 z-10"
                     )}>
-                        <div className="flex border-b border-slate-100 bg-white">
+                        <div className="flex border-b border-slate-100 bg-white flex-shrink-0 pt-2"> {/* Added top padding for spacing */}
                             <button
                                 onClick={() => setActiveTab('DATA')}
                                 className={clsx(
@@ -320,7 +358,7 @@ function App() {
 
                     <NodeConfigPanel
                         nodeId={selectedNodeId}
-                        isOpen={!!selectedNodeId}
+                        isOpen={!!selectedNodeId && isRightPanelOpen} // [Updated] Ensure visible only if panel is open
                         onClose={() => selectNode(null)}
                         onTriggerSuggestion={handleTriggerSuggestion}
                     />

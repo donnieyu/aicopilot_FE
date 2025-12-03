@@ -10,6 +10,7 @@ interface WorkflowHeaderProps {
     isInspectorOpen: boolean;
     setInspectorOpen: (open: boolean) => void;
     onOpenSideOutliner: () => void;
+    // [Cleaned] Removed unused props for right panel toggle
 }
 
 export function WorkflowHeader({
