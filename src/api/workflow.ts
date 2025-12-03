@@ -122,3 +122,22 @@ export const suggestFormAutoDiscovery = async (processContext: any, existingEnti
     );
     return data;
 };
+
+/**
+ * [New] Asset Analysis (File -> ProcessDefinition)
+ * 업로드된 파일을 분석하여 바로 프로세스 정의(토픽, 스텝)를 반환합니다.
+ */
+export const analyzeAsset = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    // [Fix] Content-Type을 null로 설정하여 client 인스턴스의 기본값(application/json)을 제거
+    // 이를 통해 브라우저가 자동으로 'multipart/form-data; boundary=...' 헤더를 설정하도록 함
+    const { data } = await client.post<ProcessDefinition>('/copilot/analyze/asset', formData, {
+        headers: {
+            'Content-Type': null
+        } as any,
+        timeout: 60000
+    });
+    return data;
+};

@@ -1,16 +1,35 @@
 import { useState, useMemo } from 'react';
-import { AlertCircle, AlertTriangle, Info, ChevronUp, ChevronDown, Locate, ArrowRight, Wrench } from 'lucide-react'; // [Change] Import Wrench
+import {
+    AlertCircle,
+    AlertTriangle,
+    Info,
+    ChevronUp,
+    ChevronDown,
+    Locate,
+    ArrowRight,
+    Wrench,
+    CheckCircle2, // [New] Healthy Icon
+    RefreshCw,    // [New] Manual Trigger Icon
+    Activity      // [New] Analysis Icon
+} from 'lucide-react';
 import clsx from 'clsx';
 import { useReactFlow } from 'reactflow';
+import { useMutation } from '@tanstack/react-query'; // [New]
 import { useWorkflowStore } from '../../../store/useWorkflowStore';
 import type { AnalysisResult } from '../../../types/workflow';
-import { ErrorFixModal } from './ErrorFixModal'; // [New] Import Modal
+import { analyzeProcess } from '../../../api/workflow'; // [New]
+import { ErrorFixModal } from './ErrorFixModal';
 
 export function AnalysisConsole() {
     const [isExpanded, setExpanded] = useState(false);
-    const [isFixModalOpen, setFixModalOpen] = useState(false); // [New] Modal State
+    const [isFixModalOpen, setFixModalOpen] = useState(false);
 
+    // Store Data
     const analysisResults = useWorkflowStore((state) => state.analysisResults);
+    const nodes = useWorkflowStore((state) => state.nodes);
+    const edges = useWorkflowStore((state) => state.edges);
+    const setResults = useWorkflowStore((state) => state.setAnalysisResults);
+
     const { setCenter } = useReactFlow();
 
     // 1. 결과 Flattening 및 통계 계산
@@ -26,7 +45,37 @@ export function AnalysisConsole() {
         };
     }, [flatResults]);
 
-    if (flatResults.length === 0) return null;
+    const isHealthy = flatResults.length === 0;
+
+    // [New] Manual Analysis Mutation
+    const { mutate: runManualAnalysis, isPending: isAnalyzing } = useMutation({
+        mutationFn: async () => {
+            // Construct lightweight snapshot (Same logic as useAutoAnalysis)
+            const snapshot = {
+                nodes: nodes.map(n => ({
+                    id: n.id,
+                    type: n.type,
+                    label: n.data.label,
+                    nextActivityId: n.data.nextActivityId,
+                    config: n.data.configuration
+                })),
+                edges: edges.map(e => ({
+                    source: e.source,
+                    target: e.target,
+                    label: e.label
+                }))
+            };
+            return await analyzeProcess(snapshot);
+        },
+        onSuccess: (data) => {
+            setResults(data);
+            // 만약 결과가 있으면 패널을 자동으로 열지 여부는 UX 선택 사항 (여기서는 유지)
+        },
+        onError: (err) => {
+            console.error("Manual analysis failed:", err);
+            alert("Failed to analyze process.");
+        }
+    });
 
     const handleFocusNode = (nodeId: string) => {
         if (!nodeId || nodeId === 'global') return;
@@ -36,12 +85,15 @@ export function AnalysisConsole() {
         }
     };
 
+    // [Updated] Removed 'if (flatResults.length === 0) return null;' logic.
+    // Now creates a persistent UI bar.
+
     return (
         <>
             <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-50 flex flex-col items-center gap-2 w-full max-w-2xl px-4">
 
-                {/* EXPANDED LIST VIEW */}
-                {isExpanded && (
+                {/* EXPANDED LIST VIEW (Only if there are results) */}
+                {isExpanded && !isHealthy && (
                     <div className="w-full bg-white/90 backdrop-blur-md rounded-xl shadow-2xl border border-slate-200 overflow-hidden animate-in slide-in-from-bottom-5 fade-in duration-300 mb-2 max-h-[400px] flex flex-col">
                         <div className="p-3 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
                             <div className="flex items-center gap-2">
@@ -94,7 +146,6 @@ export function AnalysisConsole() {
                                                     <ArrowRight size={12} />
                                                     <span>{result.suggestion}</span>
                                                 </div>
-                                                {/* Individual Fix Button (Optional shortcut) */}
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); setFixModalOpen(true); }}
                                                     className="text-[10px] font-bold text-indigo-600 hover:bg-indigo-50 px-2 py-1.5 rounded border border-indigo-100 transition-colors whitespace-nowrap"
@@ -110,44 +161,82 @@ export function AnalysisConsole() {
                     </div>
                 )}
 
-                {/* COLLAPSED STATUS BAR (Floating Pill) */}
-                <button
-                    onClick={() => setExpanded(!isExpanded)}
-                    className="flex items-center gap-4 bg-white/95 backdrop-blur shadow-xl border border-slate-200 px-5 py-3 rounded-full hover:scale-105 hover:border-blue-300 transition-all duration-300 group"
-                >
-                    <div className="flex items-center gap-2">
-                        <span className="text-sm font-bold text-slate-700 mr-2">Architect Issues</span>
+                {/* STATUS BAR (Always Visible) */}
+                <div className="flex items-center gap-2 bg-white/95 backdrop-blur shadow-xl border border-slate-200 px-4 py-2 rounded-full hover:border-blue-300 transition-all duration-300 group">
 
-                        {stats.error > 0 && (
-                            <div className="flex items-center gap-1.5 px-2 py-0.5 bg-red-100 text-red-600 rounded-full text-xs font-bold">
-                                <AlertCircle size={12} /> {stats.error}
+                    {/* 1. Status Indicator section */}
+                    <button
+                        onClick={() => !isHealthy && setExpanded(!isExpanded)}
+                        className={clsx("flex items-center gap-3", isHealthy ? "cursor-default" : "cursor-pointer")}
+                    >
+                        <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-slate-700">Audit Status</span>
+                            <div className="h-4 w-px bg-slate-200"></div>
+                        </div>
+
+                        {isHealthy ? (
+                            <div className="flex items-center gap-1.5 text-green-600 bg-green-50 px-2 py-1 rounded-full border border-green-100">
+                                <CheckCircle2 size={14} />
+                                <span className="text-xs font-bold">Healthy</span>
+                            </div>
+                        ) : (
+                            <div className="flex items-center gap-2">
+                                {stats.error > 0 && (
+                                    <div className="flex items-center gap-1 px-2 py-0.5 bg-red-100 text-red-600 rounded-full text-xs font-bold">
+                                        <AlertCircle size={12} /> {stats.error}
+                                    </div>
+                                )}
+                                {stats.warning > 0 && (
+                                    <div className="flex items-center gap-1 px-2 py-0.5 bg-amber-100 text-amber-600 rounded-full text-xs font-bold">
+                                        <AlertTriangle size={12} /> {stats.warning}
+                                    </div>
+                                )}
+                                {stats.info > 0 && (
+                                    <div className="flex items-center gap-1 px-2 py-0.5 bg-blue-100 text-blue-600 rounded-full text-xs font-bold">
+                                        <Info size={12} /> {stats.info}
+                                    </div>
+                                )}
                             </div>
                         )}
-                        {stats.warning > 0 && (
-                            <div className="flex items-center gap-1.5 px-2 py-0.5 bg-amber-100 text-amber-600 rounded-full text-xs font-bold">
-                                <AlertTriangle size={12} /> {stats.warning}
-                            </div>
-                        )}
-                        {stats.info > 0 && (
-                            <div className="flex items-center gap-1.5 px-2 py-0.5 bg-blue-100 text-blue-600 rounded-full text-xs font-bold">
-                                <Info size={12} /> {stats.info}
-                            </div>
-                        )}
-                    </div>
+                    </button>
 
-                    <div className="w-px h-4 bg-slate-300"></div>
+                    {/* 2. Divider */}
+                    <div className="h-5 w-px bg-slate-200 mx-1"></div>
 
-                    <div className="text-slate-400 group-hover:text-slate-600 transition-colors">
-                        {isExpanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
-                    </div>
-                </button>
+                    {/* 3. Manual Trigger Button */}
+                    <button
+                        onClick={() => runManualAnalysis()}
+                        disabled={isAnalyzing}
+                        className={clsx(
+                            "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all",
+                            isAnalyzing
+                                ? "bg-slate-100 text-slate-400 cursor-wait"
+                                : "bg-indigo-50 text-indigo-600 hover:bg-indigo-100"
+                        )}
+                        title="Run Logic Analysis Manually"
+                    >
+                        <RefreshCw size={12} className={clsx(isAnalyzing && "animate-spin")} />
+                        {isAnalyzing ? "Analyzing..." : "Re-scan"}
+                    </button>
+
+                    {/* 4. Expand/Collapse Toggle (Only if not healthy) */}
+                    {!isHealthy && (
+                        <button
+                            onClick={() => setExpanded(!isExpanded)}
+                            className="ml-2 text-slate-400 hover:text-slate-600 transition-colors"
+                        >
+                            {isExpanded ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+                        </button>
+                    )}
+                </div>
             </div>
 
-            {/* [New] The Fixer Modal */}
+            {/* The Fixer Modal */}
             <ErrorFixModal
                 isOpen={isFixModalOpen}
                 onClose={() => setFixModalOpen(false)}
-                errors={flatResults.filter(r => r.severity === 'ERROR' || r.severity === 'WARNING')}
+                // [Fix] Include INFO level results in the modal
+                errors={flatResults.filter(r => r.severity === 'ERROR' || r.severity === 'WARNING' || r.severity === 'INFO')}
             />
         </>
     );

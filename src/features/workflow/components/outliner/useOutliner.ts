@@ -3,9 +3,9 @@ import { useMutation } from '@tanstack/react-query';
 import type { ProcessResponse, ProcessStep } from '../../../../types/workflow';
 import { suggestProcessOutline, suggestStepDetail } from '../../../../api/workflow';
 
-export function useOutliner(process: ProcessResponse | null, initialTopic: string) {
+export function useOutliner(process: ProcessResponse | null, initialTopic: string, initialDescription: string = '') { // [Updated]
     const [topic, setTopic] = useState(process?.processName || initialTopic);
-    const [description, setDescription] = useState(process?.description || '');
+    const [description, setDescription] = useState(process?.description || initialDescription); // [Updated]
 
     // Lazy initialization for steps
     const [draftSteps, setDraftSteps] = useState<ProcessStep[]>(() => {

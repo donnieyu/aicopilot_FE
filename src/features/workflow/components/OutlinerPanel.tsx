@@ -1,4 +1,4 @@
-import { LayoutTemplate, X, GitFork, Settings, Plus, Loader2, Sparkles } from 'lucide-react';
+import { LayoutTemplate, X, GitFork, Settings, Plus, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 import type { ProcessResponse, ProcessDefinition } from '../../../types/workflow';
 import { useOutliner } from './outliner/useOutliner';
@@ -14,10 +14,11 @@ interface OutlinerPanelProps {
     process: ProcessResponse | null;
     onTransform?: (definition: ProcessDefinition) => void;
     initialTopic?: string;
+    initialDescription?: string; // [New] Prop
     mode?: 'FULL' | 'SIDE';
 }
 
-export function OutlinerPanel({ process, onTransform, initialTopic = '', mode = 'FULL', isOpen, onClose }: OutlinerPanelProps) {
+export function OutlinerPanel({ process, onTransform, initialTopic = '', initialDescription = '', mode = 'FULL', isOpen, onClose }: OutlinerPanelProps) {
     const {
         topic, setTopic,
         description, setDescription,
@@ -34,7 +35,7 @@ export function OutlinerPanel({ process, onTransform, initialTopic = '', mode = 
         cancelStep,
         startEditing,
         updateTempStep
-    } = useOutliner(process, initialTopic);
+    } = useOutliner(process, initialTopic, initialDescription); // [Updated] Pass description
 
     const handleTransform = () => {
         if (onTransform) {

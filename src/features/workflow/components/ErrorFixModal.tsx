@@ -227,8 +227,8 @@ export function ErrorFixModal({ isOpen, onClose, errors }: ErrorFixModalProps) {
                         <div className="p-5 border-b border-slate-200 bg-white">
                             <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Detected Issues</h3>
                             <div className="flex items-center justify-between">
-                                <span className="text-2xl font-black text-slate-800">{errors.length} Errors</span>
-                                <div className="px-2 py-1 bg-red-100 text-red-600 rounded-lg text-xs font-bold">High Priority</div>
+                                <span className="text-2xl font-black text-slate-800">{errors.length} Issues</span>
+                                <div className="px-2 py-1 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold">Review Needed</div>
                             </div>
                         </div>
 
@@ -253,7 +253,10 @@ export function ErrorFixModal({ isOpen, onClose, errors }: ErrorFixModalProps) {
                                     <div className="flex justify-between items-start mb-2">
                                         <span className={clsx(
                                             "text-[10px] font-bold px-2 py-0.5 rounded uppercase",
-                                            err.severity === 'ERROR' ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-600"
+                                            // [Fix] OPTIMIZATION 타입은 무조건 파란색으로 표시 (WARNING이어도 오버라이드)
+                                            err.severity === 'ERROR' ? "bg-red-100 text-red-600" :
+                                                (err.severity === 'WARNING' && err.type !== 'OPTIMIZATION') ? "bg-amber-100 text-amber-600" :
+                                                    "bg-blue-100 text-blue-600"
                                         )}>
                                             {err.type}
                                         </span>

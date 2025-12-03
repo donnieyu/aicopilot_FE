@@ -46,6 +46,7 @@ function RightPanelLoading({ message }: { message: string }) {
 function App() {
     const [step, setStep] = useState<WorkflowStep>('LANDING');
     const [initialTopic, setInitialTopic] = useState('');
+    const [initialDescription, setInitialDescription] = useState('');
 
     const [isInspectorOpen, setInspectorOpen] = useState(false);
     const [isSideOutlinerOpen, setSideOutlinerOpen] = useState(false);
@@ -72,7 +73,7 @@ function App() {
     const setDataModel = useWorkflowStore((state) => state.setDataModel);
     const setFormDefinitions = useWorkflowStore((state) => state.setFormDefinitions);
     const applySuggestion = useWorkflowStore((state) => state.applySuggestion);
-    const resetWorkflow = useWorkflowStore((state) => state.reset); // [New] Reset Action
+    const resetWorkflow = useWorkflowStore((state) => state.reset);
 
     // Access store data to check if empty
     const dataEntities = useWorkflowStore((state) => state.dataEntities);
@@ -84,6 +85,7 @@ function App() {
         if (jobStatus) {
             if (jobStatus.processResponse) {
                 setProcess(jobStatus.processResponse);
+                // step이 VIEWING이 아니라면 VIEWING으로 전환 (단, 이미 VIEWING이면 유지)
                 if (step !== 'VIEWING') setTimeout(() => setStep('VIEWING'), 0);
             }
             if (jobStatus.dataEntitiesResponse) {
@@ -98,14 +100,23 @@ function App() {
         }
     }, [jobStatus, setProcess, setDataModel, setFormDefinitions, step]);
 
-    const handleStartDrafting = (topic: string) => {
-        resetWorkflow(); // [New] Clear previous data immediately
+    const handleStartDrafting = (topic: string, description?: string) => {
+        resetWorkflow();
         setInitialTopic(topic);
+        setInitialDescription(description || '');
         setStep('OUTLINING');
     };
 
+    // [Updated] Asset으로부터 시작: 바로 맵 생성(Transformation)으로 진입
+    const handleStartFromAsset = (definition: ProcessDefinition) => {
+        resetWorkflow();
+        setInitialTopic(definition.topic);
+        startTransformation(definition);
+        setStep('VIEWING'); // Outliner 건너뛰기
+    };
+
     const handleTransform = (definition: ProcessDefinition) => {
-        resetWorkflow(); // [New] Clear previous data immediately
+        resetWorkflow();
         startTransformation(definition);
     };
 
@@ -151,23 +162,17 @@ function App() {
 
     const showBlockingOverlay = isTransforming || (isProcessing && !jobStatus?.processResponse && step === 'OUTLINING');
 
-    // [New] Determine Right Panel Content Logic
     const renderRightPanelContent = () => {
-        // Case 1: Processing AND Data not ready yet -> Show Loading
         if (isProcessing && activeTab === 'DATA' && dataEntities.length === 0) {
             return <RightPanelLoading message="Extracting business data entities from your process..." />;
         }
-
-        // Case 2: Processing AND Form not ready yet -> Show Loading
         if (isProcessing && activeTab === 'FORM' && formDefinitions.length === 0) {
             return <RightPanelLoading message="Designing UI forms and UX layouts..." />;
         }
-
-        // Case 3: Ready
         return activeTab === 'DATA' ? <DataDictionaryPanel /> : <FormListPanel />;
     };
 
-    if (step === 'LANDING') return <LandingPage onStart={handleStartDrafting} />;
+    if (step === 'LANDING') return <LandingPage onStart={handleStartDrafting} onStartFromAsset={handleStartFromAsset} />;
 
     if (step === 'OUTLINING') {
         return (
@@ -180,6 +185,7 @@ function App() {
                         process={null}
                         onTransform={handleTransform}
                         initialTopic={initialTopic}
+                        initialDescription={initialDescription}
                         mode="FULL"
                     />
                 </div>
@@ -187,8 +193,14 @@ function App() {
         );
     }
 
+    // [New] VIEWING 단계에서도 맵이 아직 생성 안되었거나 변환 중이면 오버레이 표시
+    const showLoadingInView = isTransforming || (isProcessing && !isProcessReady);
+
     return (
         <div className="flex flex-col h-screen overflow-hidden bg-slate-50 relative">
+            {/* Loading Overlay for Direct Asset-to-Map flow */}
+            <GeneratingOverlay isVisible={showLoadingInView} message={jobStatus?.message || "Generating Process Map from Asset..."} />
+
             <AiStatusWidget status={jobStatus} message={jobStatus?.message || ''} />
 
             <WorkflowHeader
@@ -212,15 +224,11 @@ function App() {
                     </div>
                 </div>
 
-                {/* RIGHT SIDEBAR CONTAINER */}
                 <div className="w-[420px] h-full border-l border-slate-200 bg-white shadow-xl z-30 flex flex-col relative transition-all">
-
-                    {/* [A] Default View: Global Dictionary (Tabs) */}
                     <div className={clsx(
                         "absolute inset-0 bg-white flex flex-col transition-opacity duration-300",
                         selectedNodeId ? "opacity-0 pointer-events-none" : "opacity-100 z-10"
                     )}>
-                        {/* Tab Navigation */}
                         <div className="flex border-b border-slate-100 bg-white">
                             <button
                                 onClick={() => setActiveTab('DATA')}
@@ -246,13 +254,11 @@ function App() {
                             </button>
                         </div>
 
-                        {/* Panel Content (with Loading State) */}
                         <div className="flex-1 relative overflow-hidden">
                             {renderRightPanelContent()}
                         </div>
                     </div>
 
-                    {/* [B] Overlay View: Node Configuration */}
                     <NodeConfigPanel
                         nodeId={selectedNodeId}
                         isOpen={!!selectedNodeId}
