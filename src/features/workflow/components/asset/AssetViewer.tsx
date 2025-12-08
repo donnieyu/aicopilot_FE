@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { useWorkflowStore } from '../../../../store/useWorkflowStore';
 import clsx from 'clsx';
+// [Fix] Removed unused 'AlertCircle' import
 import { ZoomIn, ZoomOut, FileText, Info, Quote, RotateCcw, Maximize, Minimize, CheckCircle2 } from 'lucide-react';
 import type { SourceReference } from '../../../../types/workflow';
 
@@ -182,6 +183,7 @@ export function AssetViewer({ fileUrl }: AssetViewerProps) {
                                         activeNode.type === 'SERVICE_TASK' ? "bg-purple-50 text-purple-600 border-purple-100" :
                                             "bg-orange-50 text-orange-600 border-orange-100"
                                 )}>
+                                    {/* [Fix] Safe access to type string */}
                                     {(activeNode.type || '').replace('_', ' ')}
                                 </span>
                                 <div>
