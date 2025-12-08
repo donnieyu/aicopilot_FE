@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
     LayoutTemplate,
     Search,
@@ -11,8 +12,6 @@ import {
     AlertTriangle,
     CheckCircle2,
     ArrowLeftRight,
-    Save,
-    ChevronDown,
     Settings2,
     Columns
 } from 'lucide-react';
@@ -30,8 +29,6 @@ export function FormListPanel() {
     const formDefinitions = useWorkflowStore((state) => state.formDefinitions);
     const [previewForm, setPreviewForm] = useState<FormDefinitions | null>(null);
     const [isCreateModalOpen, setCreateModalOpen] = useState(false);
-
-    // [Refactor] Inspector Mode 제거 -> Side-by-Side로 통합
 
     const isEmpty = !formDefinitions || formDefinitions.length === 0;
 
@@ -125,7 +122,7 @@ export function FormListPanel() {
             </div>
 
             {/* Global Form Inspector Modal (Side-by-Side) */}
-            {previewForm && (
+            {previewForm && createPortal(
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setPreviewForm(null)}>
                     <div
                         className="bg-white w-full max-w-[1300px] h-[85vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
@@ -216,11 +213,13 @@ export function FormListPanel() {
                             </button>
                         </div>
                     </div>
-                </div>
+                </div>,
+                document.body
             )}
 
-            {isCreateModalOpen && (
-                <CreateFormModal onClose={() => setCreateModalOpen(false)} />
+            {isCreateModalOpen && createPortal(
+                <CreateFormModal onClose={() => setCreateModalOpen(false)} />,
+                document.body
             )}
         </div>
     );
@@ -408,8 +407,8 @@ function FieldBindingRow({ field }: { field: FormField }) {
                                             >
                                                 <option value="string">String</option>
                                                 <option value="number">Number</option>
-                                                <option value="date">Date</option>
                                                 <option value="boolean">Boolean</option>
+                                                <option value="date">Date</option>
                                                 <option value="file">File</option>
                                             </select>
                                         </div>

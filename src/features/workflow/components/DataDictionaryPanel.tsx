@@ -1,15 +1,16 @@
-import { useState } from 'react'; // [Change] Import useState
+import { useState } from 'react';
+import { createPortal } from 'react-dom'; // [New] Import createPortal
 import {
     Database,
     Search,
     Box,
     ListFilter,
-    Plus // [Change] Import Plus
+    Plus
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useWorkflowStore } from '../../../store/useWorkflowStore';
 import type { DataEntity, DataEntitiesGroup } from '../../../types/workflow';
-import { CreateEntityModal } from './forms/CreateEntityModal'; // [New] Import
+import { CreateEntityModal } from './forms/CreateEntityModal';
 
 /**
  * 전역 데이터 엔티티 리스트를 보여주는 패널
@@ -17,9 +18,8 @@ import { CreateEntityModal } from './forms/CreateEntityModal'; // [New] Import
 export function DataDictionaryPanel() {
     const dataEntities = useWorkflowStore((state) => state.dataEntities);
     const groups = useWorkflowStore((state) => state.dataGroups);
-    const [isCreateModalOpen, setCreateModalOpen] = useState(false); // [New] State
+    const [isCreateModalOpen, setCreateModalOpen] = useState(false);
 
-    // [Fix] Handle empty state inside the main layout to keep header visible
     const isEmpty = !dataEntities || dataEntities.length === 0;
 
     return (
@@ -82,9 +82,10 @@ export function DataDictionaryPanel() {
                 <span>Groups: {groups.length}</span>
             </div>
 
-            {/* [New] Modal */}
-            {isCreateModalOpen && (
-                <CreateEntityModal onClose={() => setCreateModalOpen(false)} />
+            {/* [New] Modal with Portal - This breaks it out of the sidebar container */}
+            {isCreateModalOpen && createPortal(
+                <CreateEntityModal onClose={() => setCreateModalOpen(false)} />,
+                document.body
             )}
         </div>
     );

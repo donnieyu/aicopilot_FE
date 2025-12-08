@@ -19,6 +19,7 @@ import type { NodeSuggestion, ProcessDefinition } from './types/workflow';
 import type { Node } from 'reactflow';
 import { useAutoAnalysis } from './hooks/useAutoAnalysis';
 import { Database, LayoutTemplate, Loader2, Sparkles, Split, PanelRightOpen, PanelRightClose } from 'lucide-react';
+import { PanelToggleButton } from './components/PanelToggleButton'; // [New] Import
 
 type WorkflowStep = 'LANDING' | 'OUTLINING' | 'VIEWING';
 type RightPanelTab = 'DATA' | 'FORM';
@@ -261,48 +262,26 @@ function App() {
 
                 {/* [B] CENTER CANVAS */}
                 <div className="flex-1 relative h-full transition-all duration-500">
-                    {/* View Mode Toggle (Floating Left) */}
+                    {/* [Updated] View Mode Toggle (Floating Left) using Common Component */}
                     {assetUrl && (
                         <div className="absolute top-4 left-4 z-10">
-                            <button
+                            <PanelToggleButton
+                                isPanelOpen={viewMode === 'VERIFICATION'}
+                                label={viewMode === 'VERIFICATION' ? 'Hide Asset' : 'Show Asset'}
+                                icon={Split}
                                 onClick={() => setViewMode(viewMode === 'DEFAULT' ? 'VERIFICATION' : 'DEFAULT')}
-                                className={clsx(
-                                    "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold border shadow-sm transition-all",
-                                    viewMode === 'VERIFICATION'
-                                        ? "bg-indigo-600 text-white border-indigo-600"
-                                        : "bg-white text-slate-600 border-slate-200 hover:text-indigo-600"
-                                )}
-                            >
-                                <Split size={14} />
-                                {viewMode === 'VERIFICATION' ? 'Hide Asset' : 'Show Asset'}
-                            </button>
+                            />
                         </div>
                     )}
 
-                    {/* [New] Right Panel Toggle Button (Floating Right) - Matching Design */}
+                    {/* [Updated] Right Panel Toggle Button (Floating Right) using Common Component */}
                     <div className="absolute top-4 right-4 z-20">
-                        <button
+                        <PanelToggleButton
+                            isPanelOpen={isRightPanelOpen}
+                            label={isRightPanelOpen ? 'Hide Panel' : 'Show Panel'}
+                            icon={isRightPanelOpen ? PanelRightClose : PanelRightOpen}
                             onClick={() => setRightPanelOpen(!isRightPanelOpen)}
-                            className={clsx(
-                                "flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-bold border shadow-sm transition-all",
-                                !isRightPanelOpen
-                                    ? "bg-indigo-600 text-white border-indigo-600 hover:bg-indigo-700" // Open State (Hide Panel) -> White
-                                    : "bg-white text-slate-500 border-slate-200 hover:text-indigo-600 hover:border-indigo-300" // Closed State (Show Panel) -> Indigo
-                            )}
-                            title={isRightPanelOpen ? "Close Data & Forms Panel" : "Open Data & Forms Panel"}
-                        >
-                            {isRightPanelOpen ? (
-                                <>
-                                    <PanelRightClose size={14} />
-                                    <span>Hide Panel</span>
-                                </>
-                            ) : (
-                                <>
-                                    <PanelRightOpen size={14} />
-                                    <span>Show Panel</span>
-                                </>
-                            )}
-                        </button>
+                        />
                     </div>
 
                     <div className={clsx("w-full h-full transition-opacity duration-1000", isProcessReady ? "opacity-100" : "opacity-0")}>
