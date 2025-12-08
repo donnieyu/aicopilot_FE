@@ -63,3 +63,42 @@ When a user sets up the structure, the AI understands the context of the data, i
 ```bash
 git clone [https://github.com/your-username/ai-workflow-designer-fe.git](https://github.com/your-username/ai-workflow-designer-fe.git)
 cd ai-workflow-designer-fe
+```
+
+### 2. Install Dependencies
+```bash
+npm install
+# or
+yarn install
+```
+
+### 3. Run Development Server
+```bash
+npm run dev
+# or
+yarn dev
+```
+Open your browser and navigate to http://localhost:5173 to check.
+
+### 4. Build (Production)
+```bash
+npm run build
+```
+
+## 📂 Project Structure
+```
+src/
+├── api/                # API communication logic (client, endpoints)
+├── assets/             # Static assets (images, icons, etc.)
+├── components/         # Common UI components (Button, Modal, etc.)
+├── features/
+│   └── workflow/       # Workflow core features
+│       ├── components/ # Workflow-specific components (Panel, Node, etc.)
+│       └── nodes/      # React Flow custom node definitions
+├── hooks/              # Custom Hooks (Business logic separation)
+├── store/              # Zustand Store (Global state management)
+│   └── slices/         # State logic separation (Slice Pattern applied)
+├── types/              # TypeScript type definitions
+└── utils/              # Utility functions (Graph, Layout, etc.)
+
+```
