@@ -4,6 +4,7 @@ import clsx from 'clsx';
 // [Fix] Removed unused 'AlertCircle' import
 import { ZoomIn, ZoomOut, FileText, Info, Quote, RotateCcw, Maximize, Minimize, CheckCircle2 } from 'lucide-react';
 import type { SourceReference } from '../../../../types/workflow';
+import { PanelHeader } from '../../../../components/PanelHeader'; // [New] Import
 
 interface AssetViewerProps {
     fileUrl: string | null;
@@ -138,37 +139,39 @@ export function AssetViewer({ fileUrl }: AssetViewerProps) {
                 "bg-white border-t border-slate-200 flex flex-col shadow-[0_-5px_15px_-5px_rgba(0,0,0,0.05)] z-20 transition-all duration-300 ease-in-out",
                 isPanelExpanded ? "h-[35%]" : "h-[50px]" // 높이 조절
             )}>
-                {/* Panel Header */}
-                <div
-                    className="px-4 py-3 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 cursor-pointer hover:bg-slate-100 transition-colors"
-                    onClick={() => setIsPanelExpanded(!isPanelExpanded)}
-                >
-                    <div className="flex items-center gap-2">
-                        <div className={clsx("p-1.5 rounded-lg transition-colors", activeNode ? "bg-blue-100 text-blue-600" : "bg-indigo-100 text-indigo-600")}>
-                            {activeNode ? <Info size={16} /> : <FileText size={16} />}
-                        </div>
-                        <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wide">
-                            {activeNode ? "Node Analysis" : "Process Overview"}
-                        </h4>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        {activeNode && (
-                            <button
-                                onClick={(e) => { e.stopPropagation(); selectNode(null); }}
-                                className="px-2 py-1 hover:bg-white bg-slate-200/50 border border-transparent hover:border-slate-200 rounded text-slate-500 text-[10px] flex items-center gap-1 font-bold transition-all"
-                                title="Back to Overview"
-                            >
-                                <RotateCcw size={10} /> Reset
-                            </button>
-                        )}
-                        <button
-                            className="p-1 hover:bg-slate-200 rounded text-slate-400 hover:text-slate-600 transition-colors"
-                            title={isPanelExpanded ? "Collapse Panel" : "Expand Panel"}
-                        >
-                            {isPanelExpanded ? <Minimize size={16} /> : <Maximize size={16} />}
-                        </button>
-                    </div>
+                {/* [Refactor] Replaced manual header with PanelHeader */}
+                <div onClick={() => setIsPanelExpanded(!isPanelExpanded)} className="cursor-pointer">
+                    <PanelHeader
+                        title={activeNode ? "Node Analysis" : "Process Overview"}
+                        icon={activeNode ? Info : FileText}
+                        iconClassName={activeNode ? "bg-blue-100 text-blue-600" : "bg-indigo-100 text-indigo-600"}
+                        className="bg-slate-50/80 hover:bg-slate-100 transition-colors"
+                        actions={[
+                            // 조건부 렌더링: activeNode가 있을 때만 Reset 버튼 표시
+                            ...(activeNode ? [{
+                                icon: RotateCcw,
+                                label: "Reset",
+                                onClick: (e: React.MouseEvent) => { e.stopPropagation(); selectNode(null); },
+                                title: "Back to Overview",
+                                variant: 'default' as const
+                            }] : []),
+                            // Expand/Collapse 버튼
+                            {
+                                icon: isPanelExpanded ? Minimize : Maximize,
+                                onClick: (e: React.MouseEvent) => {
+                                    // Header 자체에 onClick이 있으므로 버블링을 허용하거나,
+                                    // 여기서 상태를 제어하고 부모 onClick을 제거하는 방식을 선택할 수 있습니다.
+                                    // 여기서는 부모 div onClick을 활용하므로 이 버튼은 시각적 역할만 하거나 e.stopPropagation() 없이 둡니다.
+                                    // 하지만 명시적으로 동작하려면 e.stopPropagation() 필요 없을 수도 있음 (토글이 두 번 일어나는 것 방지)
+                                    // 여기서는 단순 아이콘 역할만 하도록 onClick은 빈 함수로 두거나 제거해도 됩니다.
+                                    // PanelHeader API상 onClick 필수이므로 빈 함수 또는 상위 핸들러 사용.
+                                    e.stopPropagation();
+                                    setIsPanelExpanded(!isPanelExpanded);
+                                },
+                                title: isPanelExpanded ? "Collapse Panel" : "Expand Panel"
+                            }
+                        ]}
+                    />
                 </div>
 
                 {/* Panel Content (Scrollable) */}
