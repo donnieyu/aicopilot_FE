@@ -1,22 +1,20 @@
 import { useState, useMemo } from 'react';
 import {
-    X,
     Save,
     Database,
     User,
-    // [Fix] Unused imports removed: Server, GitFork, ArrowUpRight
     FileText,
     CheckSquare,
     Eye,
-    // [Fix] Unused Link as LinkIcon removed
     AlertTriangle,
     ChevronDown
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useWorkflowStore } from '../../../store/useWorkflowStore';
-// [Fix] Unused 'FormDefinitions' removed from named imports
 import type { NodeConfiguration, NodeType } from '../../../types/workflow';
 import { FormRenderer } from './forms/FormRenderer';
+import { StatusBadge } from '../../../components/StatusBadge'; // [New] Import
+import { PanelHeader } from '../../../components/PanelHeader'; // [New] Import (1단계에서 만든 것 활용)
 
 interface NodeConfigPanelProps {
     nodeId: string | null;
@@ -29,7 +27,6 @@ export function NodeConfigPanel({ nodeId, isOpen, onClose }: NodeConfigPanelProp
     const nodes = useWorkflowStore((state) => state.nodes);
     const updateNodeConfiguration = useWorkflowStore((state) => state.updateNodeConfiguration);
     const getAvailableVariables = useWorkflowStore((state) => state.getAvailableVariables);
-    // [Fix] Unused 'dataEntities' removed
     const formDefinitions = useWorkflowStore((state) => state.formDefinitions);
 
     const [prevNodeId, setPrevNodeId] = useState(nodeId);
@@ -59,7 +56,6 @@ export function NodeConfigPanel({ nodeId, isOpen, onClose }: NodeConfigPanelProp
         return formDefinitions.find(f => f.formName === localConfig.formKey);
     }, [localConfig.formKey, formDefinitions]);
 
-    // [Fix] Explicit 'any' replaced with specific type lookup
     const handleChange = (key: keyof NodeConfiguration, value: NodeConfiguration[keyof NodeConfiguration]) => {
         setLocalConfig((prev) => ({ ...prev, [key]: value }));
         setHasChanges(true);
@@ -82,26 +78,20 @@ export function NodeConfigPanel({ nodeId, isOpen, onClose }: NodeConfigPanelProp
                     isOpen ? "translate-x-0" : "translate-x-full"
                 )}
             >
-                {/* 1. Header */}
-                <div className="px-6 py-5 border-b border-gray-100 flex justify-between items-start bg-white">
-                    <div>
-                        <div className="flex items-center gap-2 mb-1.5">
-                             <span className={clsx(
-                                 "text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide",
-                                 nodeType === 'USER_TASK' ? "bg-blue-50 text-blue-600 border border-blue-100" :
-                                     nodeType === 'SERVICE_TASK' ? "bg-purple-50 text-purple-600 border border-purple-100" :
-                                         "bg-orange-50 text-orange-600 border border-orange-100"
-                             )}>
-                                {nodeType?.replace('_', ' ')}
-                            </span>
-                            <span className="text-[10px] text-gray-400 font-mono">ID: {nodeId}</span>
+                {/* 1. Header [Refactored] */}
+                <PanelHeader
+                    title={
+                        <div className="flex flex-col">
+                            <div className="flex items-center gap-2 mb-1">
+                                <StatusBadge type={nodeType} />
+                                <span className="text-[10px] text-gray-400 font-mono">ID: {nodeId}</span>
+                            </div>
+                            <span className="text-xl font-bold text-gray-900 leading-tight">{nodeLabel}</span>
                         </div>
-                        <h2 className="text-xl font-bold text-gray-900 leading-tight">{nodeLabel}</h2>
-                    </div>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 hover:bg-gray-100 rounded-full transition-colors">
-                        <X size={20} />
-                    </button>
-                </div>
+                    }
+                    onClose={onClose}
+                    className="py-5"
+                />
 
                 {/* 2. Content */}
                 <div className="flex-1 overflow-y-auto px-6 py-6 space-y-8 custom-scrollbar">
@@ -257,20 +247,13 @@ export function NodeConfigPanel({ nodeId, isOpen, onClose }: NodeConfigPanelProp
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
                     <div className="bg-white w-full max-w-2xl max-h-[90vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
                         {/* Modal Header */}
-                        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
-                                    <FileText size={20} />
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-slate-800">Form Preview</h3>
-                                    <p className="text-xs text-slate-500">This is how the user will see it.</p>
-                                </div>
-                            </div>
-                            <button onClick={() => setIsPreviewOpen(false)} className="p-2 hover:bg-slate-200 rounded-full transition-colors">
-                                <X size={20} className="text-slate-500" />
-                            </button>
-                        </div>
+                        <PanelHeader
+                            title="Form Preview"
+                            subTitle="This is how the user will see it."
+                            icon={FileText}
+                            iconClassName="bg-blue-100 text-blue-600"
+                            onClose={() => setIsPreviewOpen(false)}
+                        />
 
                         {/* Modal Content (Renderer) */}
                         <div className="flex-1 overflow-y-auto p-8 custom-scrollbar bg-white">

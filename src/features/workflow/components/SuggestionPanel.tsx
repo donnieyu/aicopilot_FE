@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Lightbulb, ArrowRight, Check, X } from 'lucide-react';
-// [Fix] NodeSuggestion은 타입이므로 import type을 사용합니다.
 import type { NodeSuggestion } from '../../../types/workflow';
 import clsx from 'clsx';
+import { StatusBadge } from '../../../components/StatusBadge'; // [New] Import
 
 interface SuggestionPanelProps {
     suggestions: NodeSuggestion[];
@@ -16,7 +16,6 @@ export function SuggestionPanel({ suggestions, onApply, onClose, isLoading }: Su
 
     if (isLoading) {
         return (
-            // [Fix] z-index 추가 (z-50) 및 위치 조정
             <div className="absolute bottom-6 right-6 w-80 bg-white rounded-xl shadow-xl border border-blue-100 p-4 animate-pulse z-50">
                 <div className="flex items-center gap-2 text-blue-600 mb-3">
                     <Lightbulb className="w-5 h-5 animate-bounce" />
@@ -33,7 +32,6 @@ export function SuggestionPanel({ suggestions, onApply, onClose, isLoading }: Su
     if (!suggestions || suggestions.length === 0) return null;
 
     return (
-        // [Fix] z-index 추가 (z-50) 및 위치 조정
         <div className="absolute bottom-6 right-6 w-96 bg-white rounded-xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-300 z-50">
             {/* Header */}
             <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 flex justify-between items-start border-b border-blue-100">
@@ -70,9 +68,8 @@ export function SuggestionPanel({ suggestions, onApply, onClose, isLoading }: Su
                         {/* Card Body */}
                         <div className="p-3">
                             <div className="flex justify-between items-start mb-1">
-                <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                  {item.type === 'USER_TASK' ? 'User Task' : item.type === 'SERVICE_TASK' ? 'System' : 'Gateway'}
-                </span>
+                                {/* [Refactor] StatusBadge 사용 */}
+                                <StatusBadge type={item.type} />
                                 <span className="text-[10px] text-slate-400 font-mono">Confidence: High</span>
                             </div>
                             <h4 className="font-bold text-slate-800 mb-1">{item.title}</h4>
