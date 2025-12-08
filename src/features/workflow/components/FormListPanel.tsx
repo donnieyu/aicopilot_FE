@@ -1,8 +1,6 @@
 import { useState } from 'react';
-import { createPortal } from 'react-dom';
 import {
     LayoutTemplate,
-    Search,
     Eye,
     FileText,
     X,
@@ -12,25 +10,33 @@ import {
     AlertTriangle,
     CheckCircle2,
     ArrowLeftRight,
-    Settings2,
-    Columns
+    Columns,
+    Settings2
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useWorkflowStore } from '../../../store/useWorkflowStore';
 import type { FormDefinitions, FormField, DataEntity, DataEntityType, FormFieldComponent } from '../../../types/workflow';
 import { FormRenderer } from './forms/FormRenderer';
 import { CreateFormModal } from './forms/CreateFormModal';
+import { SearchInput } from '../../../components/SearchInput'; // [New] Import
 
 /**
  * 전역 폼 정의 리스트 패널
- * 생성된 모든 폼을 조회하고, 새로운 폼을 생성할 수 있습니다.
  */
 export function FormListPanel() {
     const formDefinitions = useWorkflowStore((state) => state.formDefinitions);
     const [previewForm, setPreviewForm] = useState<FormDefinitions | null>(null);
     const [isCreateModalOpen, setCreateModalOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState(''); // [New] Search State
 
     const isEmpty = !formDefinitions || formDefinitions.length === 0;
+
+    // Filter Logic
+    const filteredForms = formDefinitions?.filter(f =>
+        !searchTerm ||
+        f.formName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (f.formDescription && f.formDescription.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
 
     return (
         <div className="h-full flex flex-col bg-white">
@@ -53,14 +59,13 @@ export function FormListPanel() {
                     </button>
                 </div>
 
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                    <input
-                        type="text"
-                        placeholder="Search forms..."
-                        className="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-pink-100 transition-all"
-                    />
-                </div>
+                {/* [Refactor] Using SearchInput */}
+                <SearchInput
+                    placeholder="Search forms..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="focus:ring-pink-100" // Override focus ring color
+                />
             </div>
 
             {/* List Content */}
@@ -79,7 +84,7 @@ export function FormListPanel() {
                         </div>
                     </div>
                 ) : (
-                    formDefinitions.map((form, idx) => (
+                    filteredForms.map((form, idx) => (
                         <div
                             key={idx}
                             className="bg-white border border-slate-200 rounded-xl p-4 hover:border-pink-300 hover:shadow-sm transition-all group cursor-pointer relative overflow-hidden"
@@ -122,7 +127,7 @@ export function FormListPanel() {
             </div>
 
             {/* Global Form Inspector Modal (Side-by-Side) */}
-            {previewForm && createPortal(
+            {previewForm && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setPreviewForm(null)}>
                     <div
                         className="bg-white w-full max-w-[1300px] h-[85vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
@@ -179,9 +184,8 @@ export function FormListPanel() {
                                 </div>
 
                                 <div className="flex-1 overflow-y-auto custom-scrollbar p-0 bg-slate-50/30">
-                                    <div className="space-y-4 p-4 pb-32"> {/* Added padding bottom for overlays */}
+                                    <div className="space-y-4 p-4 pb-32">
                                         {previewForm.fieldGroups.map(group => (
-                                            // [Fix] Removed 'overflow-hidden' to allow popovers to show
                                             <div key={group.id} className="bg-white rounded-xl border border-slate-200 shadow-sm">
                                                 <div className="px-4 py-3 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center rounded-t-xl">
                                                     <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-2">
@@ -213,23 +217,17 @@ export function FormListPanel() {
                             </button>
                         </div>
                     </div>
-                </div>,
-                document.body
+                </div>
             )}
 
-            {isCreateModalOpen && createPortal(
-                <CreateFormModal onClose={() => setCreateModalOpen(false)} />,
-                document.body
+            {isCreateModalOpen && (
+                <CreateFormModal onClose={() => setCreateModalOpen(false)} />
             )}
         </div>
     );
 }
 
-// ------------------------------------------------------------------
-// Internal Component: Field Binding Row (Logic from SmartFieldLinker)
-// ------------------------------------------------------------------
-
-// [Helper] Map Form Component to Data Entity Type
+// Internal FieldBindingRow Component (Logic from SmartFieldLinker)
 const mapComponentToDataType = (component: FormFieldComponent): DataEntityType => {
     switch (component) {
         case 'input_number': return 'number';
@@ -249,24 +247,17 @@ function FieldBindingRow({ field }: { field: FormField }) {
     const dataEntities = useWorkflowStore((state) => state.dataEntities);
     const addDataEntity = useWorkflowStore((state) => state.addDataEntity);
 
-    // Logic to find binding
     const exactMatch = dataEntities.find(e => e.alias === field.entityAlias);
     const linkedEntity = exactMatch;
     const isBound = !!linkedEntity;
 
-    // Interaction State
     const [isEditing, setIsEditing] = useState(false);
     const [mode, setMode] = useState<'SELECT' | 'CREATE'>('SELECT');
 
-    // Create New State
     const [newEntityAlias, setNewEntityAlias] = useState(field.entityAlias);
     const [newEntityType, setNewEntityType] = useState<DataEntityType>(mapComponentToDataType(field.component));
 
     const handleSelectExisting = (entity: DataEntity) => {
-        // 실제로는 FormField의 entityAlias를 업데이트해야 하지만,
-        // 현재 Store에는 updateFormField 액션이 없으므로 개념적으로만 구현하거나
-        // 여기서는 'Create New'를 통해 새로운 매핑을 만드는 flow를 강조합니다.
-        // (실제 구현 시: updateFormField(field.id, { entityAlias: entity.alias }))
         alert(`Linked to existing: ${entity.alias} (Store update needed)`);
         setIsEditing(false);
     };
@@ -285,15 +276,11 @@ function FieldBindingRow({ field }: { field: FormField }) {
             lookupData: newEntityType.includes('lookup') ? { name: 'New Lookup', lookupItems: [] } : undefined
         };
         addDataEntity(newEntity);
-        // 여기서도 폼 필드의 alias를 업데이트해야 완벽함.
-        // 현재는 Store에 Entity가 추가됨으로써 "연결 가능 상태"가 됨을 시각적으로 표현.
         setIsEditing(false);
     };
 
     return (
-        // [Fix] Add 'relative' and conditional z-index to allow overlay to appear on top
         <div className={clsx("p-4 flex items-center justify-between group hover:bg-slate-50/50 transition-colors relative", isEditing ? "z-20" : "z-0")}>
-            {/* Left: Field Info */}
             <div className="flex items-center gap-4 flex-1 min-w-0">
                 <div className={clsx(
                     "w-8 h-8 rounded-lg flex items-center justify-center border text-xs font-bold shadow-sm flex-shrink-0",
@@ -312,12 +299,9 @@ function FieldBindingRow({ field }: { field: FormField }) {
                 </div>
             </div>
 
-            {/* Right: Binding Control */}
             <div className="flex items-center gap-4 pl-2">
-                {/* Arrow Connector */}
                 <ArrowLeftRight size={14} className="text-slate-300 flex-shrink-0" />
 
-                {/* Binding Target */}
                 <div className="relative min-w-[160px] flex justify-end">
                     {!isEditing ? (
                         isBound ? (
@@ -344,9 +328,7 @@ function FieldBindingRow({ field }: { field: FormField }) {
                             </button>
                         )
                     ) : (
-                        // --- EDIT MODE PANEL ---
                         <div className="absolute right-0 top-[-10px] w-[260px] bg-white rounded-xl shadow-xl border border-slate-200 z-50 animate-in zoom-in-95 duration-200">
-                            {/* [Fix] Added Close Button on Header */}
                             <div className="flex border-b border-slate-100 relative">
                                 <button
                                     onClick={() => setMode('SELECT')}
@@ -407,8 +389,8 @@ function FieldBindingRow({ field }: { field: FormField }) {
                                             >
                                                 <option value="string">String</option>
                                                 <option value="number">Number</option>
-                                                <option value="boolean">Boolean</option>
                                                 <option value="date">Date</option>
+                                                <option value="boolean">Boolean</option>
                                                 <option value="file">File</option>
                                             </select>
                                         </div>

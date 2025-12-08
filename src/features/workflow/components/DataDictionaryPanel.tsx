@@ -1,8 +1,6 @@
 import { useState } from 'react';
-import { createPortal } from 'react-dom'; // [New] Import createPortal
 import {
     Database,
-    Search,
     Box,
     ListFilter,
     Plus
@@ -11,6 +9,7 @@ import clsx from 'clsx';
 import { useWorkflowStore } from '../../../store/useWorkflowStore';
 import type { DataEntity, DataEntitiesGroup } from '../../../types/workflow';
 import { CreateEntityModal } from './forms/CreateEntityModal';
+import { SearchInput } from '../../../components/SearchInput'; // [New] Import
 
 /**
  * 전역 데이터 엔티티 리스트를 보여주는 패널
@@ -19,6 +18,7 @@ export function DataDictionaryPanel() {
     const dataEntities = useWorkflowStore((state) => state.dataEntities);
     const groups = useWorkflowStore((state) => state.dataGroups);
     const [isCreateModalOpen, setCreateModalOpen] = useState(false);
+    const [searchTerm, setSearchTerm] = useState(''); // [New] Search State
 
     const isEmpty = !dataEntities || dataEntities.length === 0;
 
@@ -34,7 +34,6 @@ export function DataDictionaryPanel() {
                         <h2 className="text-lg font-bold text-slate-800">Data Dictionary</h2>
                     </div>
 
-                    {/* [New] Add Entity Button */}
                     <button
                         onClick={() => setCreateModalOpen(true)}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-md shadow-indigo-100 transition-all hover:-translate-y-0.5 active:scale-95"
@@ -44,14 +43,12 @@ export function DataDictionaryPanel() {
                     </button>
                 </div>
 
-                <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                    <input
-                        type="text"
-                        placeholder="Search variables..."
-                        className="w-full text-xs bg-slate-50 border border-slate-200 rounded-lg pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-100 transition-all"
-                    />
-                </div>
+                {/* [Refactor] Using SearchInput */}
+                <SearchInput
+                    placeholder="Search variables..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                />
             </div>
 
             {/* List Content */}
@@ -71,7 +68,12 @@ export function DataDictionaryPanel() {
                     </div>
                 ) : (
                     groups.map((group) => (
-                        <EntityGroup key={group.id} group={group} allEntities={dataEntities} />
+                        <EntityGroup
+                            key={group.id}
+                            group={group}
+                            allEntities={dataEntities}
+                            filter={searchTerm} // Pass filter term
+                        />
                     ))
                 )}
             </div>
@@ -82,17 +84,23 @@ export function DataDictionaryPanel() {
                 <span>Groups: {groups.length}</span>
             </div>
 
-            {/* [New] Modal with Portal - This breaks it out of the sidebar container */}
-            {isCreateModalOpen && createPortal(
-                <CreateEntityModal onClose={() => setCreateModalOpen(false)} />,
-                document.body
+            {isCreateModalOpen && (
+                <CreateEntityModal onClose={() => setCreateModalOpen(false)} />
             )}
         </div>
     );
 }
 
-function EntityGroup({ group, allEntities }: { group: DataEntitiesGroup, allEntities: DataEntity[] }) {
-    const groupEntities = allEntities.filter(e => group.entityIds.includes(e.id));
+function EntityGroup({ group, allEntities, filter }: { group: DataEntitiesGroup, allEntities: DataEntity[], filter: string }) {
+    // Filter entities based on search term (alias or label)
+    const groupEntities = allEntities.filter(e =>
+        group.entityIds.includes(e.id) &&
+        (
+            !filter ||
+            e.alias.toLowerCase().includes(filter.toLowerCase()) ||
+            e.label.toLowerCase().includes(filter.toLowerCase())
+        )
+    );
 
     if (groupEntities.length === 0) return null;
 
