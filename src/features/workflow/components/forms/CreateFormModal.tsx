@@ -11,8 +11,8 @@ import {
     Link as LinkIcon,
     Wand2,
     BrainCircuit,
-    ChevronDown, // [Fix] Import added
-    Save // [Fix] Import added
+    ChevronDown,
+    Save
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useMutation } from '@tanstack/react-query';
@@ -20,6 +20,7 @@ import { useWorkflowStore } from '../../../../store/useWorkflowStore';
 import type { FormDefinitions, FormField, DataEntity, DataEntityType, FormFieldComponent } from '../../../../types/workflow';
 import { AiActionButton } from '../../../../components/AiActionButton';
 import { suggestFormAutoDiscovery } from '../../../../api/workflow';
+import { BaseModal } from '../../../../components/BaseModal'; // [New] Import BaseModal
 
 interface CreateFormModalProps {
     onClose: () => void;
@@ -46,7 +47,6 @@ export function CreateFormModal({ onClose }: CreateFormModalProps) {
     // AI Form Auto-Discovery Mutation
     const { mutate: autoDiscoverForm, isPending: isLoading } = useMutation({
         mutationFn: async () => {
-            // 1. Process Context
             const processContext = {
                 nodes: nodes.map(n => ({
                     id: n.id,
@@ -56,14 +56,12 @@ export function CreateFormModal({ onClose }: CreateFormModalProps) {
                 edges: edges.map(e => ({ source: e.source, target: e.target }))
             };
 
-            // 2. Data Context
             const simplifiedEntities = dataEntities.map(e => ({
                 alias: e.alias,
                 type: e.type,
                 description: e.description
             }));
 
-            // 3. Existing Forms
             const simplifiedForms = existingForms.map(f => ({
                 name: f.formName,
                 description: f.formDescription
@@ -73,7 +71,6 @@ export function CreateFormModal({ onClose }: CreateFormModalProps) {
         },
         onSuccess: (data) => {
             if (data && data.formDefinitions && data.formDefinitions.length > 0) {
-                // Take the first suggested form (Agent returns a list, but usually 1 is enough for modal)
                 setGeneratedForm(data.formDefinitions[0]);
             } else {
                 alert("No new form suggestions found.");
@@ -104,136 +101,131 @@ export function CreateFormModal({ onClose }: CreateFormModalProps) {
     };
 
     return (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 relative max-h-[85vh]">
-
-                {/* Header */}
-                <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white flex-shrink-0">
-                    <div className="flex items-center gap-2">
-                        <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg">
-                            <LayoutTemplate size={20} />
-                        </div>
-                        <h3 className="font-bold text-slate-800 text-lg">
-                            {generatedForm ? 'Smart Data Linking' : 'Form Architect'}
-                        </h3>
-                    </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400">
-                        <X size={20} />
-                    </button>
+        <BaseModal
+            onClose={onClose}
+            title={
+                <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-slate-800 text-lg">
+                        {generatedForm ? 'Smart Data Linking' : 'Form Architect'}
+                    </h3>
                 </div>
+            }
+            icon={LayoutTemplate}
+            maxWidth="max-w-2xl"
+            hideCloseButton={false}
+        >
+            {/* Body Content */}
+            {!generatedForm ? (
+                <>
+                    <div className="flex border-b border-slate-100 flex-shrink-0">
+                        <button
+                            onClick={() => setActiveTab('AI')}
+                            className={clsx("flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 border-b-2 transition-all", activeTab === 'AI' ? "border-indigo-500 text-indigo-600 bg-indigo-50/50" : "border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50")}
+                        >
+                            <Sparkles size={16} /> AI Architect
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('MANUAL')}
+                            className={clsx("flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 border-b-2 transition-all", activeTab === 'MANUAL' ? "border-pink-500 text-pink-600 bg-pink-50/50" : "border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50")}
+                        >
+                            <PenTool size={16} /> Manual Design
+                        </button>
+                    </div>
 
-                {/* Body Content */}
-                {!generatedForm ? (
-                    <>
-                        <div className="flex border-b border-slate-100 flex-shrink-0">
-                            <button
-                                onClick={() => setActiveTab('AI')}
-                                className={clsx("flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 border-b-2 transition-all", activeTab === 'AI' ? "border-indigo-500 text-indigo-600 bg-indigo-50/50" : "border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50")}
-                            >
-                                <Sparkles size={16} /> AI Architect
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('MANUAL')}
-                                className={clsx("flex-1 py-4 text-sm font-bold flex items-center justify-center gap-2 border-b-2 transition-all", activeTab === 'MANUAL' ? "border-pink-500 text-pink-600 bg-pink-50/50" : "border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50")}
-                            >
-                                <PenTool size={16} /> Manual Design
-                            </button>
-                        </div>
-
-                        <div className="p-6 bg-slate-50/50 min-h-[300px] flex flex-col">
-                            {activeTab === 'AI' ? (
-                                <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-6">
-                                    <div className="p-4 bg-white rounded-full shadow-sm border border-indigo-100 mb-2">
-                                        <BrainCircuit size={32} className="text-indigo-500" />
-                                    </div>
-                                    <div>
-                                        <h4 className="text-lg font-bold text-slate-700">Auto-Analyze Context</h4>
-                                        <p className="text-sm text-slate-400 mt-2 max-w-sm mx-auto leading-relaxed">
-                                            AI scans your process map and existing data entities to suggest the most appropriate form structure automatically.
-                                        </p>
-                                    </div>
-
-                                    <AiActionButton
-                                        onClick={() => autoDiscoverForm()}
-                                        isLoading={isLoading}
-                                        loadingText="Analyzing Workflow..."
-                                        className="shadow-lg shadow-indigo-200"
-                                        icon={Wand2}
-                                        fullWidth={true}
-                                    >
-                                        Suggest Missing Form
-                                    </AiActionButton>
+                    <div className="p-6 bg-slate-50/50 min-h-[300px] flex flex-col">
+                        {activeTab === 'AI' ? (
+                            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-6">
+                                <div className="p-4 bg-white rounded-full shadow-sm border border-indigo-100 mb-2">
+                                    <BrainCircuit size={32} className="text-indigo-500" />
                                 </div>
-                            ) : (
-                                <div className="space-y-5">
-                                    <div>
-                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Form Name (Key)</label>
-                                        <input
-                                            type="text"
-                                            value={formName}
-                                            onChange={(e) => setFormName(e.target.value)}
-                                            placeholder="e.g. Vendor_Registration_Form"
-                                            className="w-full text-sm border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-pink-400 focus:ring-2 focus:ring-pink-100 bg-white"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Description</label>
-                                        <textarea
-                                            value={description}
-                                            onChange={(e) => setDescription(e.target.value)}
-                                            placeholder="Briefly describe the purpose of this form..."
-                                            className="w-full h-24 text-sm border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-pink-400 focus:ring-2 focus:ring-pink-100 bg-white resize-none"
-                                        />
-                                    </div>
-
-                                    <div className="pt-4">
-                                        <button onClick={handleManualCreate} disabled={!formName} className="w-full py-3 bg-pink-600 text-white rounded-xl font-bold hover:bg-pink-700 transition-colors disabled:bg-slate-300">Create Blank Form</button>
-                                    </div>
+                                <div>
+                                    <h4 className="text-lg font-bold text-slate-700">Auto-Analyze Context</h4>
+                                    <p className="text-sm text-slate-400 mt-2 max-w-sm mx-auto leading-relaxed">
+                                        AI scans your process map and existing data entities to suggest the most appropriate form structure automatically.
+                                    </p>
                                 </div>
-                            )}
-                        </div>
-                    </>
-                ) : (
-                    // Review & Linking Stage (Existing Logic)
-                    <div className="flex flex-col h-[500px]">
-                        <div className="bg-blue-50 px-6 py-3 border-b border-blue-100 flex items-start gap-3 flex-shrink-0">
-                            <Sparkles size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
-                            <div>
-                                <p className="text-xs text-blue-800 font-medium">AI suggestion ready: <span className="font-bold">{generatedForm.formName}</span></p>
-                                <p className="text-[10px] text-blue-600 mt-0.5">Please review the fields and their data mappings below.</p>
+
+                                <AiActionButton
+                                    onClick={() => autoDiscoverForm()}
+                                    isLoading={isLoading}
+                                    loadingText="Analyzing Workflow..."
+                                    className="shadow-lg shadow-indigo-200"
+                                    icon={Wand2}
+                                    fullWidth={true}
+                                >
+                                    Suggest Missing Form
+                                </AiActionButton>
                             </div>
-                        </div>
-
-                        <div className="flex-1 overflow-y-auto p-6 bg-slate-50 space-y-6 custom-scrollbar">
-                            {generatedForm.fieldGroups.map(group => (
-                                <div key={group.id} className="space-y-2">
-                                    <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
-                                        {group.name}
-                                    </h5>
-                                    {group.fields.map(field => (
-                                        <SmartFieldLinker
-                                            key={field.id}
-                                            field={field}
-                                            dataEntities={dataEntities}
-                                        />
-                                    ))}
+                        ) : (
+                            <div className="space-y-5">
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Form Name (Key)</label>
+                                    <input
+                                        type="text"
+                                        value={formName}
+                                        onChange={(e) => setFormName(e.target.value)}
+                                        placeholder="e.g. Vendor_Registration_Form"
+                                        className="w-full text-sm border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-pink-400 focus:ring-2 focus:ring-pink-100 bg-white"
+                                    />
                                 </div>
-                            ))}
-                        </div>
+                                <div>
+                                    <label className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1.5 block">Description</label>
+                                    <textarea
+                                        value={description}
+                                        onChange={(e) => setDescription(e.target.value)}
+                                        placeholder="Briefly describe the purpose of this form..."
+                                        className="w-full h-24 text-sm border border-slate-200 rounded-xl px-4 py-3 focus:outline-none focus:border-pink-400 focus:ring-2 focus:ring-pink-100 bg-white resize-none"
+                                    />
+                                </div>
 
-                        <div className="p-4 border-t border-slate-100 bg-white flex justify-end gap-3 flex-shrink-0">
-                            <button onClick={() => setGeneratedForm(null)} className="px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-50 rounded-lg">Back</button>
-                            <button onClick={handleConfirmSave} className="px-6 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg shadow-md hover:bg-indigo-700">
-                                Confirm & Save Form
-                            </button>
+                                <div className="pt-4">
+                                    <button onClick={handleManualCreate} disabled={!formName} className="w-full py-3 bg-pink-600 text-white rounded-xl font-bold hover:bg-pink-700 transition-colors disabled:bg-slate-300">Create Blank Form</button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </>
+            ) : (
+                <div className="flex flex-col h-[500px]">
+                    <div className="bg-blue-50 px-6 py-3 border-b border-blue-100 flex items-start gap-3 flex-shrink-0">
+                        <Sparkles size={16} className="text-blue-600 mt-0.5 flex-shrink-0" />
+                        <div>
+                            <p className="text-xs text-blue-800 font-medium">AI suggestion ready: <span className="font-bold">{generatedForm.formName}</span></p>
+                            <p className="text-[10px] text-blue-600 mt-0.5">Please review the fields and their data mappings below.</p>
                         </div>
                     </div>
-                )}
-            </div>
-        </div>
+
+                    <div className="flex-1 overflow-y-auto p-6 bg-slate-50 space-y-6 custom-scrollbar">
+                        {generatedForm.fieldGroups.map(group => (
+                            <div key={group.id} className="space-y-2">
+                                <h5 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">
+                                    {group.name}
+                                </h5>
+                                {group.fields.map(field => (
+                                    <SmartFieldLinker
+                                        key={field.id}
+                                        field={field}
+                                        dataEntities={dataEntities}
+                                    />
+                                ))}
+                            </div>
+                        ))}
+                    </div>
+
+                    <div className="p-4 border-t border-slate-100 bg-white flex justify-end gap-3 flex-shrink-0">
+                        <button onClick={() => setGeneratedForm(null)} className="px-4 py-2 text-sm font-bold text-slate-500 hover:bg-slate-50 rounded-lg">Back</button>
+                        <button onClick={handleConfirmSave} className="px-6 py-2 bg-indigo-600 text-white text-sm font-bold rounded-lg shadow-md hover:bg-indigo-700">
+                            Confirm & Save Form
+                        </button>
+                    </div>
+                </div>
+            )}
+        </BaseModal>
     );
 }
 
+// ... (SmartFieldLinker implementation remains same as before or updated if needed)
+// Internal Component: Field Binding Row (Logic from SmartFieldLinker)
 // [Helper] Map Form Component to Data Entity Type
 const mapComponentToDataType = (component: FormFieldComponent): DataEntityType => {
     switch (component) {

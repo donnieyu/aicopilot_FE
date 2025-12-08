@@ -1,16 +1,18 @@
+import { useEffect, useState } from 'react';
 import type { ReactNode, ElementType } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import clsx from 'clsx';
 
 interface BaseModalProps {
-    isOpen?: boolean; // 제어형 컴포넌트로 사용할 경우 (선택)
+    isOpen?: boolean;
     onClose: () => void;
-    title: ReactNode; // 텍스트 또는 컴포넌트 (PanelHeader와 유사)
+    title: ReactNode;
     icon?: ElementType;
     children: ReactNode;
     footer?: ReactNode;
-    maxWidth?: string; // 'max-w-2xl' 등 Tailwind 클래스
-    className?: string; // 모달 컨테이너 추가 스타일
+    maxWidth?: string;
+    className?: string;
     hideCloseButton?: boolean;
 }
 
@@ -24,12 +26,24 @@ export function BaseModal({
                               className,
                               hideCloseButton = false
                           }: BaseModalProps) {
-    // 모달 외부 클릭 시 닫기 (선택 사항 - 여기서는 배경 클릭 시 닫기 구현)
-    // ESC 키 닫기 등 접근성 고려 가능
+    // Portal을 위한 마운트 상태 관리 (SSR 이슈 방지 및 클라이언트 렌더링 보장)
+    const [mounted, setMounted] = useState(false);
 
-    return (
+    useEffect(() => {
+        setMounted(true);
+        // 모달 오픈 시 body 스크롤 방지 (선택 사항)
+        document.body.style.overflow = 'hidden';
+        return () => {
+            document.body.style.overflow = 'unset';
+        };
+    }, []);
+
+    if (!mounted) return null;
+
+    // Portal을 사용하여 document.body에 렌더링
+    return createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            {/* Backdrop Click Handler (Optional) */}
+            {/* Backdrop Click Handler */}
             <div className="absolute inset-0" onClick={onClose} aria-hidden="true" />
 
             <div
@@ -71,6 +85,7 @@ export function BaseModal({
                     </div>
                 )}
             </div>
-        </div>
+        </div>,
+        document.body // 렌더링 타겟
     );
 }

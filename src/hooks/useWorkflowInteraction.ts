@@ -16,7 +16,10 @@ export function useWorkflowInteraction() {
     // Local UI State
     const [isInspectorOpen, setInspectorOpen] = useState(false);
     const [isSideOutlinerOpen, setSideOutlinerOpen] = useState(false);
-    const [isRightPanelOpen, setRightPanelOpen] = useState(true);
+
+    // [Changed] 오른쪽 패널의 초기 상태를 닫힘(false)으로 변경
+    const [isRightPanelOpen, setRightPanelOpen] = useState(false);
+
     const [showSuggestionPanel, setShowSuggestionPanel] = useState(false);
     const [suggestions, setSuggestions] = useState<NodeSuggestion[]>([]);
 
@@ -30,7 +33,7 @@ export function useWorkflowInteraction() {
         setShowSuggestionPanel(false);
         setSuggestions([]);
 
-        // If panel is closed, open it to show node config
+        // 노드를 클릭하면 패널이 닫혀있을 경우 자동으로 엽니다.
         if (!isRightPanelOpen) {
             setRightPanelOpen(true);
         }

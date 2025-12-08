@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import {
-    X,
     Database,
     Plus,
     Trash2,
@@ -13,6 +12,7 @@ import { useWorkflowStore } from '../../../../store/useWorkflowStore';
 import type { DataEntity, DataEntityType } from '../../../../types/workflow';
 import { AiActionButton } from '../../../../components/AiActionButton';
 import { suggestAutoDiscovery } from '../../../../api/workflow';
+import { BaseModal } from '../../../../components/BaseModal'; // [New] Import BaseModal
 
 interface CreateEntityModalProps {
     onClose: () => void;
@@ -71,8 +71,6 @@ export function CreateEntityModal({ onClose }: CreateEntityModalProps) {
                 }));
 
             // C. Combine All Known Entities
-            // (Merge strategy: If alias duplicates, it's fine, backend agent logic usually handles deduplication or we can dedup here if needed.
-            // Simple concatenation sends full context.)
             const allKnownEntities = [...globalEntities, ...localDrafts];
 
             return await suggestAutoDiscovery(processContext, allKnownEntities);
@@ -146,25 +144,38 @@ export function CreateEntityModal({ onClose }: CreateEntityModalProps) {
     };
 
     return (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-            <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
-
-                {/* Header */}
-                <div className="px-6 py-5 border-b border-slate-100 flex justify-between items-center bg-white flex-shrink-0">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg">
-                            <Database size={20} />
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-slate-800 text-lg">Data Entity Architect</h3>
-                            <p className="text-xs text-slate-500">Bulk add variables manually or ask AI to extract them.</p>
-                        </div>
-                    </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400">
-                        <X size={20} />
-                    </button>
+        <BaseModal
+            onClose={onClose}
+            title={
+                <div>
+                    <h3 className="font-bold text-slate-800 text-lg">Data Entity Architect</h3>
+                    <p className="text-xs text-slate-500 font-normal">Bulk add variables manually or ask AI to extract them.</p>
                 </div>
-
+            }
+            icon={Database}
+            maxWidth="max-w-4xl"
+            footer={
+                <div className="flex justify-between items-center w-full">
+                    <p className="text-[10px] text-slate-400">
+                        * {drafts.filter(d => d.alias).length} entities will be added to the dictionary.
+                    </p>
+                    <div className="flex gap-3">
+                        <button onClick={onClose} className="px-5 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors">
+                            Cancel
+                        </button>
+                        <button
+                            onClick={handleSaveAll}
+                            disabled={drafts.filter(d => d.alias).length === 0}
+                            className="px-6 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-colors shadow-lg shadow-slate-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                        >
+                            <Save size={16} />
+                            Save to Dictionary
+                        </button>
+                    </div>
+                </div>
+            }
+        >
+            <div className="flex flex-col h-full">
                 {/* AI Section */}
                 <div className="p-8 bg-slate-50/80 border-b border-slate-100 flex flex-col items-center justify-center gap-3 flex-shrink-0">
                     <div className="text-center mb-2">
@@ -189,7 +200,7 @@ export function CreateEntityModal({ onClose }: CreateEntityModalProps) {
                 </div>
 
                 {/* Grid Editor (Scrollable) */}
-                <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-white">
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-6 bg-white min-h-[300px]">
                     <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
                         {/* Grid Header */}
                         <div className="grid grid-cols-12 gap-4 bg-slate-50 px-4 py-3 border-b border-slate-200 text-xs font-bold text-slate-500 uppercase tracking-wider">
@@ -256,27 +267,7 @@ export function CreateEntityModal({ onClose }: CreateEntityModalProps) {
                         Add New Row
                     </button>
                 </div>
-
-                {/* Footer */}
-                <div className="px-6 py-4 border-t border-slate-100 bg-white flex justify-between items-center flex-shrink-0">
-                    <p className="text-[10px] text-slate-400">
-                        * {drafts.filter(d => d.alias).length} entities will be added to the dictionary.
-                    </p>
-                    <div className="flex gap-3">
-                        <button onClick={onClose} className="px-5 py-2.5 text-sm font-bold text-slate-500 hover:bg-slate-100 rounded-xl transition-colors">
-                            Cancel
-                        </button>
-                        <button
-                            onClick={handleSaveAll}
-                            disabled={drafts.filter(d => d.alias).length === 0}
-                            className="px-6 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 transition-colors shadow-lg shadow-slate-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                        >
-                            <Save size={16} />
-                            Save to Dictionary
-                        </button>
-                    </div>
-                </div>
             </div>
-        </div>
+        </BaseModal>
     );
 }

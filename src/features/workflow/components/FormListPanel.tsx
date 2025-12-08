@@ -1,4 +1,5 @@
 import { useState } from 'react';
+// [Removed] createPortal import 제거
 import {
     LayoutTemplate,
     Eye,
@@ -18,7 +19,8 @@ import { useWorkflowStore } from '../../../store/useWorkflowStore';
 import type { FormDefinitions, FormField, DataEntity, DataEntityType, FormFieldComponent } from '../../../types/workflow';
 import { FormRenderer } from './forms/FormRenderer';
 import { CreateFormModal } from './forms/CreateFormModal';
-import { SearchInput } from '../../../components/SearchInput'; // [New] Import
+import { SearchInput } from '../../../components/SearchInput';
+import { BaseModal } from '../../../components/BaseModal';
 
 /**
  * 전역 폼 정의 리스트 패널
@@ -27,7 +29,7 @@ export function FormListPanel() {
     const formDefinitions = useWorkflowStore((state) => state.formDefinitions);
     const [previewForm, setPreviewForm] = useState<FormDefinitions | null>(null);
     const [isCreateModalOpen, setCreateModalOpen] = useState(false);
-    const [searchTerm, setSearchTerm] = useState(''); // [New] Search State
+    const [searchTerm, setSearchTerm] = useState('');
 
     const isEmpty = !formDefinitions || formDefinitions.length === 0;
 
@@ -59,12 +61,11 @@ export function FormListPanel() {
                     </button>
                 </div>
 
-                {/* [Refactor] Using SearchInput */}
                 <SearchInput
                     placeholder="Search forms..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="focus:ring-pink-100" // Override focus ring color
+                    className="focus:ring-pink-100"
                 />
             </div>
 
@@ -127,88 +128,24 @@ export function FormListPanel() {
             </div>
 
             {/* Global Form Inspector Modal (Side-by-Side) */}
+            {/* [Refactor] Removed explicit createPortal, now handled by BaseModal */}
             {previewForm && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setPreviewForm(null)}>
-                    <div
-                        className="bg-white w-full max-w-[1300px] h-[85vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        {/* Modal Header */}
-                        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white flex-shrink-0">
-                            <div className="flex items-center gap-3">
-                                <div className="p-2 bg-pink-100 text-pink-600 rounded-lg">
-                                    <Settings2 size={20} />
-                                </div>
-                                <div>
-                                    <h3 className="font-bold text-slate-800">Form Inspector</h3>
-                                    <p className="text-xs text-slate-500">
-                                        <span className="font-semibold text-pink-600 mr-2">{previewForm.formName}</span>
-                                        Manage data bindings and UI preview
-                                    </p>
-                                </div>
-                            </div>
-                            <button onClick={() => setPreviewForm(null)} className="p-2 hover:bg-slate-100 rounded-full transition-colors text-slate-400">
-                                <X size={20} />
-                            </button>
+                <BaseModal
+                    onClose={() => setPreviewForm(null)}
+                    title={
+                        <div>
+                            <h3 className="font-bold text-slate-800">Form Inspector</h3>
+                            <p className="text-xs text-slate-500 font-normal">
+                                <span className="font-semibold text-pink-600 mr-2">{previewForm.formName}</span>
+                                Manage data bindings and UI preview
+                            </p>
                         </div>
-
-                        {/* Modal Content - Side by Side Layout */}
-                        <div className="flex-1 overflow-hidden flex flex-row">
-
-                            {/* LEFT: UI Preview */}
-                            <div className="flex-1 bg-slate-100/50 overflow-y-auto custom-scrollbar p-8 relative border-r border-slate-200">
-                                <div className="max-w-2xl mx-auto">
-                                    <div className="flex items-center justify-between mb-4 sticky top-0 z-10 backdrop-blur-sm py-2">
-                                        <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                                            <Eye size={14} /> UI Preview
-                                        </h4>
-                                        <span className="text-[10px] text-slate-400 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm">
-                                            Read-Only Mode
-                                        </span>
-                                    </div>
-                                    <div className="bg-white rounded-xl shadow-lg shadow-slate-200/50 border border-slate-200 p-8 min-h-[600px]">
-                                        <FormRenderer definition={previewForm} readOnly={true} />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* RIGHT: Data Binding Panel */}
-                            <div className="w-[450px] bg-white flex flex-col h-full shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.02)] z-10 flex-shrink-0">
-                                <div className="px-5 py-4 border-b border-slate-100 bg-white">
-                                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
-                                        <LinkIcon size={14} /> Data Entity Mapping
-                                    </h4>
-                                    <p className="text-[10px] text-slate-400 mt-1">
-                                        Connect each visual field to a data entity.
-                                    </p>
-                                </div>
-
-                                <div className="flex-1 overflow-y-auto custom-scrollbar p-0 bg-slate-50/30">
-                                    <div className="space-y-4 p-4 pb-32">
-                                        {previewForm.fieldGroups.map(group => (
-                                            <div key={group.id} className="bg-white rounded-xl border border-slate-200 shadow-sm">
-                                                <div className="px-4 py-3 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center rounded-t-xl">
-                                                    <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-2">
-                                                        {group.name}
-                                                    </h4>
-                                                    <span className="text-[10px] text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200">
-                                                        {group.fields.length} Fields
-                                                    </span>
-                                                </div>
-                                                <div className="divide-y divide-slate-50 rounded-b-xl">
-                                                    {group.fields.map(field => (
-                                                        <FieldBindingRow key={field.id} field={field} />
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        {/* Modal Footer */}
-                        <div className="px-6 py-4 border-t border-slate-100 bg-white flex justify-between items-center flex-shrink-0">
+                    }
+                    icon={Settings2}
+                    maxWidth="max-w-[1300px]"
+                    className="h-[85vh] flex flex-col" // Force height for side-by-side layout
+                    footer={
+                        <div className="flex justify-between items-center w-full">
                             <p className="text-[10px] text-slate-400">
                                 * Changes to data bindings are applied to the schema immediately.
                             </p>
@@ -216,8 +153,63 @@ export function FormListPanel() {
                                 Close Inspector
                             </button>
                         </div>
+                    }
+                >
+                    {/* Modal Content - Side by Side Layout */}
+                    <div className="flex-1 overflow-hidden flex flex-row h-full">
+
+                        {/* LEFT: UI Preview */}
+                        <div className="flex-1 bg-slate-100/50 overflow-y-auto custom-scrollbar p-8 relative border-r border-slate-200">
+                            <div className="max-w-2xl mx-auto">
+                                <div className="flex items-center justify-between mb-4 sticky top-0 z-10 backdrop-blur-sm py-2">
+                                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                                        <Eye size={14} /> UI Preview
+                                    </h4>
+                                    <span className="text-[10px] text-slate-400 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm">
+                                        Read-Only Mode
+                                    </span>
+                                </div>
+                                <div className="bg-white rounded-xl shadow-lg shadow-slate-200/50 border border-slate-200 p-8 min-h-[600px]">
+                                    <FormRenderer definition={previewForm} readOnly={true} />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* RIGHT: Data Binding Panel */}
+                        <div className="w-[450px] bg-white flex flex-col h-full shadow-[-10px_0_15px_-3px_rgba(0,0,0,0.02)] z-10 flex-shrink-0">
+                            <div className="px-5 py-4 border-b border-slate-100 bg-white">
+                                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-2">
+                                    <LinkIcon size={14} /> Data Entity Mapping
+                                </h4>
+                                <p className="text-[10px] text-slate-400 mt-1">
+                                    Connect each visual field to a data entity.
+                                </p>
+                            </div>
+
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-0 bg-slate-50/30">
+                                <div className="space-y-4 p-4 pb-32">
+                                    {previewForm.fieldGroups.map(group => (
+                                        <div key={group.id} className="bg-white rounded-xl border border-slate-200 shadow-sm">
+                                            <div className="px-4 py-3 bg-slate-50/50 border-b border-slate-100 flex justify-between items-center rounded-t-xl">
+                                                <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wider flex items-center gap-2">
+                                                    {group.name}
+                                                </h4>
+                                                <span className="text-[10px] text-slate-400 bg-white px-2 py-0.5 rounded border border-slate-200">
+                                                    {group.fields.length} Fields
+                                                </span>
+                                            </div>
+                                            <div className="divide-y divide-slate-50 rounded-b-xl">
+                                                {group.fields.map(field => (
+                                                    <FieldBindingRow key={field.id} field={field} />
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div>
+                </BaseModal>
             )}
 
             {isCreateModalOpen && (

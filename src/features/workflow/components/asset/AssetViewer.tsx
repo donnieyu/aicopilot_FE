@@ -1,10 +1,9 @@
 import { useEffect, useState, useRef } from 'react';
 import { useWorkflowStore } from '../../../../store/useWorkflowStore';
 import clsx from 'clsx';
-// [Fix] Removed unused 'AlertCircle' import
 import { ZoomIn, ZoomOut, FileText, Info, Quote, RotateCcw, Maximize, Minimize, CheckCircle2 } from 'lucide-react';
 import type { SourceReference } from '../../../../types/workflow';
-import { PanelHeader } from '../../../../components/PanelHeader'; // [New] Import
+import { PanelHeader } from '../../../../components/PanelHeader';
 
 interface AssetViewerProps {
     fileUrl: string | null;
@@ -159,12 +158,6 @@ export function AssetViewer({ fileUrl }: AssetViewerProps) {
                             {
                                 icon: isPanelExpanded ? Minimize : Maximize,
                                 onClick: (e: React.MouseEvent) => {
-                                    // Header 자체에 onClick이 있으므로 버블링을 허용하거나,
-                                    // 여기서 상태를 제어하고 부모 onClick을 제거하는 방식을 선택할 수 있습니다.
-                                    // 여기서는 부모 div onClick을 활용하므로 이 버튼은 시각적 역할만 하거나 e.stopPropagation() 없이 둡니다.
-                                    // 하지만 명시적으로 동작하려면 e.stopPropagation() 필요 없을 수도 있음 (토글이 두 번 일어나는 것 방지)
-                                    // 여기서는 단순 아이콘 역할만 하도록 onClick은 빈 함수로 두거나 제거해도 됩니다.
-                                    // PanelHeader API상 onClick 필수이므로 빈 함수 또는 상위 핸들러 사용.
                                     e.stopPropagation();
                                     setIsPanelExpanded(!isPanelExpanded);
                                 },
@@ -182,8 +175,8 @@ export function AssetViewer({ fileUrl }: AssetViewerProps) {
                             <div className="flex items-start gap-3 pb-3 border-b border-slate-100">
                                 <span className={clsx(
                                     "px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide border mt-0.5",
-                                    activeNode.type === 'USER_TASK' ? "bg-blue-50 text-blue-600 border-blue-100" :
-                                        activeNode.type === 'SERVICE_TASK' ? "bg-purple-50 text-purple-600 border-purple-100" :
+                                    (activeNode.type || '').includes('USER') ? "bg-blue-50 text-blue-600 border-blue-100" :
+                                        (activeNode.type || '').includes('SERVICE') ? "bg-purple-50 text-purple-600 border-purple-100" :
                                             "bg-orange-50 text-orange-600 border-orange-100"
                                 )}>
                                     {/* [Fix] Safe access to type string */}
