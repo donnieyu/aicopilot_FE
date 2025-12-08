@@ -2,6 +2,9 @@
 
 **"Executable Business Process Design via Natural Language"**
 
+> 🔗 **Paired Backend Repository:** [ai-workflow-designer-be](https://github.com/your-username/ai-workflow-designer-be)  
+> (This frontend requires the backend server to be running locally on port 8080)
+
 AI-Native Workflow Designer is an AI-powered workflow modeler that helps users complete **Executable Process Definitions** through natural language and intuitive interactions without complex setups.
 
 ## 🚀 Project Overview
@@ -102,3 +105,7 @@ src/
 └── utils/              # Utility functions (Graph, Layout, etc.)
 
 ```
+
+## 📝 License
+
+This project is licensed under the MIT License.
