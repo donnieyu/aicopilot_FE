@@ -1,6 +1,6 @@
 import { Search } from 'lucide-react';
 import clsx from 'clsx';
-import { InputHTMLAttributes } from 'react';
+import type { InputHTMLAttributes } from 'react';
 
 interface SearchInputProps extends InputHTMLAttributes<HTMLInputElement> {
     placeholder?: string;

@@ -1,4 +1,4 @@
-import { ReactNode, useEffect, useRef } from 'react';
+import type { ReactNode, ElementType } from 'react';
 import { X } from 'lucide-react';
 import clsx from 'clsx';
 
@@ -6,7 +6,7 @@ interface BaseModalProps {
     isOpen?: boolean; // 제어형 컴포넌트로 사용할 경우 (선택)
     onClose: () => void;
     title: ReactNode; // 텍스트 또는 컴포넌트 (PanelHeader와 유사)
-    icon?: React.ElementType;
+    icon?: ElementType;
     children: ReactNode;
     footer?: ReactNode;
     maxWidth?: string; // 'max-w-2xl' 등 Tailwind 클래스
