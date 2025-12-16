@@ -2,7 +2,7 @@
 
 **"Executable Business Process Design via Natural Language"**
 
-> 🔗 **Paired Backend Repository:** [ai-workflow-designer-be](https://github.com/donnieyu/aicopilot_BE)  
+> 🔗 **Paired Backend Repository:** [aicopilot_BE](https://github.com/donnieyu/aicopilot_BE)  
 > (This frontend requires the backend server to be running locally on port 8080)
 
 AI-Native Workflow Designer is an AI-powered workflow modeler that helps users complete **Executable Process Definitions** through natural language and intuitive interactions without complex setups.
@@ -64,8 +64,8 @@ When a user sets up the structure, the AI understands the context of the data, i
 
 ### 1. Clone Repository
 ```bash
-git clone [https://github.com/your-username/ai-workflow-designer-fe.git](https://github.com/your-username/ai-workflow-designer-fe.git)
-cd ai-workflow-designer-fe
+git clone [https://github.com/donnieyu/aicopilot_FE](https://github.com/donnieyu/aicopilot_FE)
+cd aicopilot_FE
 ```
 
 ### 2. Install Dependencies
