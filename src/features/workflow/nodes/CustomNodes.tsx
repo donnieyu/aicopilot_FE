@@ -5,7 +5,7 @@ import { Play, Square } from 'lucide-react';
 import clsx from 'clsx';
 import type { Activity, AnalysisResult } from '../../../types/workflow';
 import { useWorkflowStore } from '../../../store/useWorkflowStore';
-import { StatusBadge } from '../../../components/StatusBadge'; // [New] Import
+import { StatusBadge } from '../../../components/StatusBadge';
 
 // [New] Nudge Badge Component (Using StatusBadge)
 const NudgeBadge = ({ results }: { results: AnalysisResult[] }) => {
@@ -131,7 +131,7 @@ export const GatewayNode = memo(({ id, data, selected }: NodeProps<Activity>) =>
     const analysisResults = useWorkflowStore(state => state.analysisResults[id]);
 
     return (
-        <div className="relative">
+        <div className="relative z-10"> {/* [Fix] Z-index를 명시적으로 1로 설정하여 Edge보다 위에 놓이게 함 */}
             {analysisResults && (
                 <div className="absolute -top-6 -right-6 z-20">
                     <NudgeBadge results={analysisResults} />
@@ -161,7 +161,7 @@ export const StartNode = memo(({ data, selected }: NodeProps) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const isTB = (data as any).layoutDirection === 'TB';
     return (
-        <div className={clsx("flex flex-col items-center justify-center", selected && "opacity-80")}>
+        <div className={clsx("flex flex-col items-center justify-center relative z-10", selected && "opacity-80")}>
             <div className="w-10 h-10 rounded-full bg-green-100 border-2 border-green-500 flex items-center justify-center shadow-sm">
                 <Play size={20} className="text-green-600 fill-current ml-1" />
             </div>
@@ -176,7 +176,7 @@ export const EndNode = memo(({ data, selected }: NodeProps) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const isTB = (data as any).layoutDirection === 'TB';
     return (
-        <div className={clsx("flex flex-col items-center justify-center", selected && "opacity-80")}>
+        <div className={clsx("flex flex-col items-center justify-center relative z-10", selected && "opacity-80")}>
             <Handle type="target" position={isTB ? Position.Top : Position.Left} className="!bg-red-500 !w-3 !h-3" />
             <div className="w-10 h-10 rounded-full bg-red-100 border-4 border-red-500 flex items-center justify-center shadow-sm">
                 <Square size={16} className="text-red-600 fill-current" />

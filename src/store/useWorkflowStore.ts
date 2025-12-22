@@ -10,7 +10,6 @@ import type { UiSlice } from './slices/createUiSlice';
 import { createAnalysisSlice } from './slices/createAnalysisSlice';
 import type { AnalysisSlice } from './slices/createAnalysisSlice';
 
-// Combine all slice interfaces
 export type WorkflowState = GraphSlice & DataSlice & FormSlice & UiSlice & AnalysisSlice & {
     reset: () => void;
 };
@@ -22,9 +21,7 @@ export const useWorkflowStore = create<WorkflowState>((...a) => ({
     ...createUiSlice(...a),
     ...createAnalysisSlice(...a),
 
-    // Unified Reset Action
     reset: () => {
-        // [Fix] Removed unused 'set' by using destructuring skip
         const [, get] = a;
         get().resetGraph();
         get().resetData();
