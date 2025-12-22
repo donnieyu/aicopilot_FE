@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useWorkflowGenerator } from './hooks/useWorkflowGenerator';
 import { useWorkflowStore } from './store/useWorkflowStore';
-import { useWorkflowInteraction } from './hooks/useWorkflowInteraction'; // [New] Import
+import { useWorkflowInteraction } from './hooks/useWorkflowInteraction';
 import { WorkflowCanvas } from './features/workflow/WorkflowCanvas';
 import { JsonInspector } from './components/JsonInspector';
 import { SuggestionPanel } from './features/workflow/components/SuggestionPanel';
@@ -17,40 +17,21 @@ import { AssetViewer } from './features/workflow/components/asset/AssetViewer';
 import clsx from 'clsx';
 import type { ProcessDefinition } from './types/workflow';
 import { useAutoAnalysis } from './hooks/useAutoAnalysis';
-import { Database, LayoutTemplate, Loader2, Sparkles, Split, PanelRightOpen, PanelRightClose } from 'lucide-react';
+import { Split, PanelRightOpen, PanelRightClose } from 'lucide-react';
 import { PanelToggleButton } from './components/PanelToggleButton';
 
 type WorkflowStep = 'LANDING' | 'OUTLINING' | 'VIEWING';
-type RightPanelTab = 'DATA' | 'FORM';
-
-// Local Component for Right Panel Loading State
-function RightPanelLoading({ message }: { message: string }) {
-    return (
-        <div className="flex flex-col items-center justify-center h-full p-8 text-center animate-in fade-in duration-500">
-            <div className="relative mb-4">
-                <div className="absolute inset-0 bg-blue-100 rounded-full animate-ping opacity-25"></div>
-                <div className="relative bg-white p-3 rounded-full shadow-sm border border-blue-100">
-                    <Loader2 className="w-6 h-6 text-blue-600 animate-spin" />
-                </div>
-            </div>
-            <h3 className="text-sm font-bold text-slate-700 mb-1 flex items-center gap-2">
-                <Sparkles size={14} className="text-blue-500" />
-                AI Architect Working
-            </h3>
-            <p className="text-xs text-slate-400 leading-relaxed max-w-[200px]">
-                {message}
-            </p>
-        </div>
-    );
-}
+// [Refactor] 메인 뷰 상태 타입 정의
+export type MainView = 'CANVAS' | 'DATA' | 'FORM';
 
 function App() {
     const [step, setStep] = useState<WorkflowStep>('LANDING');
     const [initialTopic, setInitialTopic] = useState('');
     const [initialDescription, setInitialDescription] = useState('');
-    const [activeTab, setActiveTab] = useState<RightPanelTab>('DATA');
 
-    // [Refactor] Use Custom Hook for Interactions
+    // [Refactor] 메인 뷰 상태 추가
+    const [mainView, setMainView] = useState<MainView>('CANVAS');
+
     const {
         selectedNodeId,
         viewMode,
@@ -83,20 +64,15 @@ function App() {
         isCompleted
     } = useWorkflowGenerator();
 
-    // Store Selectors (Direct Access for logic not covered by interaction hook)
     const setProcess = useWorkflowStore((state) => state.setProcess);
     const setDataModel = useWorkflowStore((state) => state.setDataModel);
     const setFormDefinitions = useWorkflowStore((state) => state.setFormDefinitions);
     const resetWorkflow = useWorkflowStore((state) => state.reset);
-    const selectNode = useWorkflowStore((state) => state.selectNode); // Used in onClose callback
+    const selectNode = useWorkflowStore((state) => state.selectNode);
 
-    // Asset State setters
     const setAssetUrl = useWorkflowStore((state) => state.setAssetUrl);
-    const setViewMode = useWorkflowStore((state) => state.setViewMode); // Used in landing page handler
+    const setViewMode = useWorkflowStore((state) => state.setViewMode);
     const setProcessMetadata = useWorkflowStore((state) => state.setProcessMetadata);
-
-    const dataEntities = useWorkflowStore((state) => state.dataEntities);
-    const formDefinitions = useWorkflowStore((state) => state.formDefinitions);
 
     useAutoAnalysis();
 
@@ -168,15 +144,9 @@ function App() {
 
     const showBlockingOverlay = isTransforming || (isProcessing && !jobStatus?.processResponse && step === 'OUTLINING');
 
-    const renderRightPanelContent = () => {
-        if (isProcessing && activeTab === 'DATA' && dataEntities.length === 0) {
-            return <RightPanelLoading message="Extracting business data entities from your process..." />;
-        }
-        if (isProcessing && activeTab === 'FORM' && formDefinitions.length === 0) {
-            return <RightPanelLoading message="Designing UI forms and UX layouts..." />;
-        }
-        return activeTab === 'DATA' ? <DataDictionaryPanel /> : <FormListPanel />;
-    };
+    // [Refactor] 뷰 모드에 따른 로딩 상태 처리
+    const showLoadingInView = isTransforming || (isProcessing && !isProcessReady);
+    const isSplitView = viewMode === 'VERIFICATION' && assetUrl && mainView === 'CANVAS';
 
     if (step === 'LANDING') return (
         <LandingPage
@@ -204,9 +174,6 @@ function App() {
         );
     }
 
-    const showLoadingInView = isTransforming || (isProcessing && !isProcessReady);
-    const isSplitView = viewMode === 'VERIFICATION' && assetUrl;
-
     return (
         <div className="flex flex-col h-screen overflow-hidden bg-slate-50 relative">
             <GeneratingOverlay isVisible={showLoadingInView} message={jobStatus?.message || "Generating Process Map from Asset..."} />
@@ -220,102 +187,99 @@ function App() {
                 isInspectorOpen={isInspectorOpen}
                 setInspectorOpen={setInspectorOpen}
                 onOpenSideOutliner={() => setSideOutlinerOpen(true)}
+                // [Refactor] 메인 뷰 상태 전달
+                activeView={mainView}
+                onViewChange={setMainView}
             />
 
             <div className="flex-1 relative overflow-hidden bg-slate-50 flex">
-                {/* [A] LEFT PANEL */}
+
+                {/* [A] LEFT PANEL (Asset Viewer) - Only in Canvas Mode & Verification Mode */}
                 {isSplitView && (
                     <div className="w-[40%] h-full border-r border-slate-200 bg-slate-100 z-10 shadow-inner animate-in slide-in-from-left-4 duration-500">
                         <AssetViewer fileUrl={assetUrl} />
                     </div>
                 )}
 
-                {/* [B] CENTER CANVAS */}
-                <div className="flex-1 relative h-full transition-all duration-500">
-                    {/* View Mode Toggle */}
-                    {assetUrl && (
-                        <div className="absolute top-4 left-4 z-10">
-                            <PanelToggleButton
-                                isPanelOpen={viewMode === 'VERIFICATION'}
-                                label={viewMode === 'VERIFICATION' ? 'Hide Asset' : 'Show Asset'}
-                                icon={Split}
-                                onClick={toggleViewMode}
-                            />
+                {/* [B] MAIN CONTENT AREA (Swappable) */}
+                <div className="flex-1 relative h-full transition-all duration-500 flex flex-col">
+
+                    {/* 1. Canvas View */}
+                    {mainView === 'CANVAS' && (
+                        <>
+                            {/* View Mode Toggle (Overlay) */}
+                            {assetUrl && (
+                                <div className="absolute top-4 left-4 z-10">
+                                    <PanelToggleButton
+                                        isPanelOpen={viewMode === 'VERIFICATION'}
+                                        label={viewMode === 'VERIFICATION' ? 'Hide Asset' : 'Show Asset'}
+                                        icon={Split}
+                                        onClick={toggleViewMode}
+                                    />
+                                </div>
+                            )}
+
+                            {/* Node Config Toggle (Overlay) - 노드가 선택되었을 때만 */}
+                            {selectedNodeId && (
+                                <div className="absolute top-4 right-4 z-20">
+                                    <PanelToggleButton
+                                        isPanelOpen={isRightPanelOpen}
+                                        label={isRightPanelOpen ? 'Hide Panel' : 'Show Panel'}
+                                        icon={isRightPanelOpen ? PanelRightClose : PanelRightOpen}
+                                        onClick={() => setRightPanelOpen(!isRightPanelOpen)}
+                                    />
+                                </div>
+                            )}
+
+                            <div className={clsx("w-full h-full transition-opacity duration-1000", isProcessReady ? "opacity-100" : "opacity-0")}>
+                                <WorkflowCanvas onNodeClick={handleNodeClick} />
+                                <div
+                                    className="absolute inset-0 -z-10"
+                                    onClick={handlePaneClick}
+                                    aria-hidden="true"
+                                />
+                            </div>
+                        </>
+                    )}
+
+                    {/* 2. Data Dictionary View */}
+                    {mainView === 'DATA' && (
+                        <div className="w-full h-full animate-in fade-in zoom-in-95 duration-300">
+                            <DataDictionaryPanel />
                         </div>
                     )}
 
-                    {/* Right Panel Toggle */}
-                    <div className="absolute top-4 right-4 z-20">
-                        <PanelToggleButton
-                            isPanelOpen={isRightPanelOpen}
-                            label={isRightPanelOpen ? 'Hide Panel' : 'Show Panel'}
-                            icon={isRightPanelOpen ? PanelRightClose : PanelRightOpen}
-                            onClick={() => setRightPanelOpen(!isRightPanelOpen)}
-                        />
-                    </div>
-
-                    <div className={clsx("w-full h-full transition-opacity duration-1000", isProcessReady ? "opacity-100" : "opacity-0")}>
-                        <WorkflowCanvas onNodeClick={handleNodeClick} />
-                        <div
-                            className="absolute inset-0 -z-10"
-                            onClick={handlePaneClick}
-                            aria-hidden="true"
-                        />
-                    </div>
-                </div>
-
-                {/* [C] RIGHT SIDEBAR */}
-                <div
-                    className={clsx(
-                        "h-full border-l border-slate-200 bg-white shadow-xl z-30 flex flex-col relative transition-all duration-300 ease-in-out",
-                        isRightPanelOpen ? "w-[420px] translate-x-0" : "w-0 translate-x-full opacity-0 overflow-hidden"
+                    {/* 3. Form List View */}
+                    {mainView === 'FORM' && (
+                        <div className="w-full h-full animate-in fade-in zoom-in-95 duration-300">
+                            <FormListPanel />
+                        </div>
                     )}
-                >
-                    <div className={clsx(
-                        "absolute inset-0 bg-white flex flex-col transition-opacity duration-300",
-                        selectedNodeId ? "opacity-0 pointer-events-none" : "opacity-100 z-10"
-                    )}>
-                        <div className="flex border-b border-slate-100 bg-white flex-shrink-0 pt-2">
-                            <button
-                                onClick={() => setActiveTab('DATA')}
-                                className={clsx(
-                                    "flex-1 py-3 text-xs font-bold flex items-center justify-center gap-2 border-b-2 transition-colors",
-                                    activeTab === 'DATA'
-                                        ? "border-indigo-500 text-indigo-600 bg-indigo-50/50"
-                                        : "border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50"
-                                )}
-                            >
-                                <Database size={14} /> Data Dictionary
-                            </button>
-                            <button
-                                onClick={() => setActiveTab('FORM')}
-                                className={clsx(
-                                    "flex-1 py-3 text-xs font-bold flex items-center justify-center gap-2 border-b-2 transition-colors",
-                                    activeTab === 'FORM'
-                                        ? "border-pink-500 text-pink-600 bg-pink-50/50"
-                                        : "border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50"
-                                )}
-                            >
-                                <LayoutTemplate size={14} /> Form List
-                            </button>
-                        </div>
-
-                        <div className="flex-1 relative overflow-hidden">
-                            {renderRightPanelContent()}
-                        </div>
-                    </div>
-
-                    <NodeConfigPanel
-                        nodeId={selectedNodeId}
-                        isOpen={!!selectedNodeId && isRightPanelOpen}
-                        onClose={() => selectNode(null)}
-                        onTriggerSuggestion={handleTriggerSuggestion}
-                    />
                 </div>
 
+                {/* [C] RIGHT SIDEBAR (Node Config Only - Canvas Mode) */}
+                {mainView === 'CANVAS' && (
+                    <div
+                        className={clsx(
+                            "h-full border-l border-slate-200 bg-white shadow-xl z-30 flex flex-col relative transition-all duration-300 ease-in-out",
+                            (isRightPanelOpen && selectedNodeId) ? "w-[420px] translate-x-0" : "w-0 translate-x-full opacity-0 overflow-hidden"
+                        )}
+                    >
+                        <NodeConfigPanel
+                            nodeId={selectedNodeId}
+                            isOpen={!!selectedNodeId && isRightPanelOpen}
+                            onClose={() => selectNode(null)}
+                            onTriggerSuggestion={handleTriggerSuggestion}
+                        />
+                    </div>
+                )}
+
+                {/* Global Modals/Panels */}
                 <JsonInspector isOpen={isInspectorOpen} onClose={() => setInspectorOpen(false)} data={jobStatus || null} />
                 <OutlinerPanel isOpen={isSideOutlinerOpen} onClose={() => setSideOutlinerOpen(false)} process={jobStatus?.processResponse || null} mode="SIDE" />
-                {showSuggestionPanel && (
+
+                {/* Suggestion Panel (Only in Canvas Mode) */}
+                {mainView === 'CANVAS' && showSuggestionPanel && (
                     <SuggestionPanel
                         suggestions={suggestions}
                         isLoading={isSuggesting}
