@@ -14,10 +14,10 @@ function App() {
     const [initialTopic, setInitialTopic] = useState('');
 
     // Interaction Hooks
-    const { isInspectorOpen, setInspectorOpen } = useUiStore(state => ({
-        isInspectorOpen: false, // TODO: Add to UiStore if needed globally, or keep local state here
-        setInspectorOpen: (v: boolean) => {} // Mock for now or move to store
-    }));
+    // const { isInspectorOpen, setInspectorOpen } = useUiStore(state => ({
+    //     isInspectorOpen: false, // TODO: Add to UiStore if needed globally, or keep local state here
+    //     setInspectorOpen: (v: boolean) => {} // Mock for now or move to store
+    // }));
     const [inspectorOpen, setLocalInspectorOpen] = useState(false);
 
     const {

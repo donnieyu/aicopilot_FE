@@ -1,7 +1,7 @@
 import clsx from 'clsx';
-import { useUiStore } from '../../../../store/useUiStore';
-import { useWorkflowStore } from '../../../../store/useWorkflowStore';
-import { useWorkflowInteraction } from '../../../../hooks/useWorkflowInteraction';
+import { useUiStore } from '../../../store/useUiStore';
+import { useWorkflowStore } from '../../../store/useWorkflowStore';
+import { useWorkflowInteraction } from '../../../hooks/useWorkflowInteraction';
 import { WorkflowHeader } from './WorkflowHeader';
 import { WorkflowCanvas } from '../WorkflowCanvas';
 import { DataDictionaryPanel } from './DataDictionaryPanel';
@@ -10,8 +10,8 @@ import { AssetViewer } from './asset/AssetViewer';
 import { NodeConfigOverlay } from './NodeConfigOverlay';
 import { SuggestionPanel } from './SuggestionPanel';
 import { Split } from 'lucide-react';
-import { PanelToggleButton } from '../../../../components/PanelToggleButton';
-import type { JobStatus } from '../../../../types/workflow';
+import { PanelToggleButton } from '../../../components/PanelToggleButton';
+import type { JobStatus } from '../../../types/workflow';
 
 interface MainWorkspaceProps {
     jobStatus: JobStatus | null | undefined;
