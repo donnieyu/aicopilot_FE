@@ -15,15 +15,23 @@ import type {
  */
 const AI_TIMEOUT = 120000;
 
+// =====================================================================
+// [Phase 2] Copilot Chat & Knowledge API
+// =====================================================================
+
 /**
- * [Phase 2] Copilot Chat API
- * 사용자 프롬프트와 선택된 지식(Asset) ID 목록을 전달하여 프로세스를 생성하거나 수정합니다.
+ * Chat with Context API
+ * 사용자 메시지와 선택된 지식(Asset) ID 목록을 전달하여 대화를 진행하거나 프로세스를 생성합니다.
  */
 export const chatWithAi = async (userPrompt: string, selectedAssetIds: string[]) => {
-    const { data } = await client.post<{ jobId: string; message: string }>(
+    // BE: CopilotController.chatWithAi -> POST /api/copilot/chat
+    const { data } = await client.post<{
+        reply: string;
+        jobId?: string; // 프로세스 생성이 트리거된 경우 존재
+    }>(
         '/copilot/chat',
         {
-            userPrompt,
+            userPrompt, // ChatRequest DTO 필드명 확인 (message vs userPrompt)
             selectedAssetIds
         },
         { timeout: AI_TIMEOUT }
@@ -32,14 +40,14 @@ export const chatWithAi = async (userPrompt: string, selectedAssetIds: string[])
 };
 
 /**
- * [Phase 2] Asset Management API - 1. 파일 업로드
- * 파일을 서버에 업로드하고 즉시 생성된 Asset ID를 반환받습니다. (분석은 비동기로 진행)
+ * Asset Upload API
+ * 파일을 업로드하고 즉시 Asset ID를 반환받습니다. (분석은 비동기)
  */
 export const uploadAssetFile = async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
 
-    // axios에서 multipart/form-data는 자동으로 처리되도록 헤더 설정
+    // BE: AssetController.uploadAsset -> POST /api/assets
     const { data } = await client.post<{ assetId: string; status: string }>(
         '/assets',
         formData,
@@ -51,36 +59,26 @@ export const uploadAssetFile = async (file: File) => {
 };
 
 /**
- * [Phase 2] Asset Management API - 2. 상태 폴링
- * 특정 자산의 분석 상태(UPLOADING, ANALYZING, READY, FAILED) 및 설명 정보를 조회합니다.
+ * Asset Status Polling API
+ * 특정 자산의 분석 상태 및 설명(요약)을 조회합니다.
  */
 export const getAssetStatus = async (assetId: string) => {
-    // [Updated] 백엔드 응답 구조 반영 (summary -> description)
+    // BE: AssetController.getAssetStatusOnly -> GET /api/assets/{id}/status
     const { data } = await client.get<{
         id: string;
         status: 'UPLOADING' | 'ANALYZING' | 'READY' | 'FAILED';
         description?: string;
-    }>(`/assets/${assetId}`);
+    }>(`/assets/${assetId}/status`);
     return data;
 };
 
-/**
- * [Phase 2] Asset Management API - 3. 상세 내용 조회
- * 분석이 완료된 자산의 전체 텍스트 내용을 조회합니다.
- */
-export const getAssetContent = async (assetId: string) => {
-    const { data } = await client.get<{ content: string }>(`/assets/${assetId}/content`);
-    return data;
-};
+
+// =====================================================================
+// Legacy / Core Workflow API
+// =====================================================================
 
 /**
- * ---------------------------------------------------------
- * 기존 워크플로우 관련 API (호환성 유지)
- * ---------------------------------------------------------
- */
-
-/**
- * 1. 프로세스 생성 요청 (Quick Start)
+ * 1. 프로세스 생성 요청 (Quick Start - Legacy)
  */
 export const startProcessGeneration = async (prompt: string) => {
     const { data } = await client.post<{ jobId: string; message: string }>(
@@ -138,7 +136,9 @@ export const analyzeProcess = async (graphSnapshot: any) => {
 /**
  * 6. 에러 수정 요청 (Surgical Fix)
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const fixProcessGraph = async (graphSnapshot: any, error: AnalysisResult) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data } = await client.post<{ nodes: any[], edges: any[], fixDescription?: string }>(
         '/copilot/analyze/fix',
         { graphSnapshot, error },
@@ -148,11 +148,13 @@ export const fixProcessGraph = async (graphSnapshot: any, error: AnalysisResult)
 };
 
 /**
- * 7. 이미지 기반 프로세스 직접 분석
+ * 7. 이미지 기반 프로세스 직접 분석 (Legacy Direct API)
+ * [Note] 이제는 Chat Context Flow가 권장되지만, Landing Page의 'Start from Asset' 기능을 위해 유지
  */
 export const analyzeAsset = async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
+    // BE: CopilotController.analyzeAsset -> POST /api/copilot/analyze/asset
     const { data } = await client.post<ProcessDefinition>('/copilot/analyze/asset', formData, {
         headers: { 'Content-Type': 'multipart/form-data' },
         timeout: AI_TIMEOUT
@@ -163,18 +165,20 @@ export const analyzeAsset = async (file: File) => {
 /**
  * 8. 데이터/폼 자동 발견 제안 (Auto-Discovery)
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const suggestAutoDiscovery = async (processContext: any, existingEntities: any[]) => {
     const { data } = await client.post<DataEntitiesResponse>(
-        '/suggest/data-model/auto-discovery',
+        '/copilot/suggest/data-model/auto-discovery',
         { processContext, existingEntities },
         { timeout: AI_TIMEOUT }
     );
     return data;
 };
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const suggestFormAutoDiscovery = async (processContext: any, existingEntities: any[], existingForms: any[]) => {
     const { data } = await client.post<FormResponse>(
-        '/suggest/form/auto-discovery',
+        '/copilot/suggest/form/auto-discovery',
         { processContext, existingEntities, existingForms },
         { timeout: AI_TIMEOUT }
     );

@@ -1,41 +1,57 @@
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
 import { UploadCloud, FileText, CheckSquare, Square, Trash2, Loader2, Info } from 'lucide-react';
 import clsx from 'clsx';
+// Relative paths strictly maintained
 import { useAssetStore, type Asset } from '../../../../store/useAssetStore';
-import { useCopilotStore } from '../../../../store/useCopilotStore'; // 상대경로 수정됨
+import { useChatStore } from '../../../../store/useChatStore';
 import { uploadAssetFile, getAssetStatus } from '../../../../api/workflow';
 
 /**
- * 지식 자산(Asset) 매니저
- * 업로드된 파일을 관리하고, AI가 참고할 지식 컨텍스트를 선택합니다.
+ * Knowledge Asset Manager
+ * Manages uploaded files and selects knowledge context for the AI.
+ * All UI labels and messages are converted to English.
  */
-
 export function AssetManager() {
     const { assets, isUploading, addAsset, removeAsset, updateAssetStatus } = useAssetStore();
-    const { selectedAssetIds, toggleAssetSelection } = useCopilotStore();
+    const { selectedAssetIds, toggleAssetSelection, setSelectedAssets } = useChatStore();
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const pollingIntervals = useRef<Record<string, NodeJS.Timeout>>({});
 
-    // 분석 상태를 폴링하는 내부 함수
+    useEffect(() => {
+        return () => {
+            Object.values(pollingIntervals.current).forEach(clearInterval);
+        };
+    }, []);
+
     const startPolling = (assetId: string) => {
+        if (pollingIntervals.current[assetId]) return;
+
         const interval = setInterval(async () => {
             try {
                 const data = await getAssetStatus(assetId);
 
                 if (data.status === 'READY') {
-                    // [Updated] summary -> description으로 변경
                     updateAssetStatus(assetId, 'READY', { description: data.description });
-                    toggleAssetSelection(assetId); // 준비 완료 시 자동 선택
+
+                    const currentSelected = useChatStore.getState().selectedAssetIds;
+                    if (!currentSelected.includes(assetId)) {
+                        setSelectedAssets([...currentSelected, assetId]);
+                    }
+
                     clearInterval(interval);
+                    delete pollingIntervals.current[assetId];
                 } else if (data.status === 'FAILED') {
-                    updateAssetStatus(assetId, 'FAILED');
+                    updateAssetStatus(assetId, 'FAILED', { description: 'Analysis failed.' });
                     clearInterval(interval);
+                    delete pollingIntervals.current[assetId];
                 }
             } catch (error) {
                 console.error('Asset polling error:', error);
-                clearInterval(interval);
             }
-        }, 3000);
+        }, 2000);
+
+        pollingIntervals.current[assetId] = interval;
     };
 
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -43,32 +59,46 @@ export function AssetManager() {
             const file = e.target.files[0];
 
             try {
-                // 1. API 호출: 파일 업로드 및 ID 획득
-                const { assetId } = await uploadAssetFile(file);
+                const { assetId, status } = await uploadAssetFile(file);
 
-                // 2. Store에 업로드 중 상태로 추가
                 const newAsset: Asset = {
                     id: assetId,
                     name: file.name,
                     type: file.type,
                     size: file.size,
-                    status: 'ANALYZING',
+                    status: status as any,
                     uploadTime: Date.now()
                 };
                 addAsset(newAsset);
 
-                // 3. 상태 폴링 시작
-                startPolling(assetId);
+                if (status !== 'READY' && status !== 'FAILED') {
+                    startPolling(assetId);
+                } else if (status === 'READY') {
+                    toggleAssetSelection(assetId);
+                }
 
             } catch (error) {
-                alert('파일 업로드에 실패했습니다.');
+                console.error("Upload failed", error);
+                alert('Failed to upload the file. Please try again.');
             }
         }
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
+    const handleRemove = (id: string) => {
+        removeAsset(id);
+        const newSelected = selectedAssetIds.filter(assetId => assetId !== id);
+        setSelectedAssets(newSelected);
+
+        if (pollingIntervals.current[id]) {
+            clearInterval(pollingIntervals.current[id]);
+            delete pollingIntervals.current[id];
+        }
+    };
+
     return (
         <div className="flex flex-col h-full bg-slate-50">
+            {/* Upload Area */}
             <div className="p-4 border-b border-slate-200 bg-white">
                 <label
                     className={clsx(
@@ -80,23 +110,25 @@ export function AssetManager() {
                         <div className="p-2 bg-indigo-50 rounded-full mb-2 group-hover:scale-110 transition-transform">
                             {isUploading ? <Loader2 className="w-6 h-6 text-indigo-500 animate-spin" /> : <UploadCloud className="w-6 h-6 text-indigo-500" />}
                         </div>
-                        <p className="text-xs text-slate-600 font-bold">참조 지식 추가</p>
-                        <p className="text-[10px] text-slate-400 mt-1">사내 규정, 매뉴얼 (PDF, Excel, 이미지)</p>
+                        <p className="text-xs text-slate-600 font-bold">Add Reference Knowledge</p>
+                        <p className="text-[10px] text-slate-400 mt-1">Manuals, Regulations (PDF, Excel, Images)</p>
                     </div>
                     <input
                         ref={fileInputRef}
                         type="file"
                         className="hidden"
                         onChange={handleFileChange}
+                        accept=".pdf,.xlsx,.xls,.csv,.png,.jpg,.jpeg,.txt,.md"
                     />
                 </label>
             </div>
 
+            {/* Asset List */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar">
                 {assets.length === 0 ? (
                     <div className="text-center py-10 opacity-50">
                         <FileText className="w-12 h-12 mx-auto text-slate-300 mb-2" />
-                        <p className="text-xs text-slate-400">등록된 지식이 없습니다.</p>
+                        <p className="text-xs text-slate-400">No knowledge assets registered yet.</p>
                     </div>
                 ) : (
                     assets.map((asset) => (
@@ -105,15 +137,16 @@ export function AssetManager() {
                             asset={asset}
                             isSelected={selectedAssetIds.includes(asset.id)}
                             onToggle={() => toggleAssetSelection(asset.id)}
-                            onRemove={() => removeAsset(asset.id)}
+                            onRemove={() => handleRemove(asset.id)}
                         />
                     ))
                 )}
             </div>
 
+            {/* Info Footer */}
             <div className="p-3 bg-indigo-50 border-t border-indigo-100 text-[10px] text-indigo-700 flex items-start gap-2">
                 <Info size={14} className="flex-shrink-0 mt-0.5" />
-                <p>체크된 자산은 AI가 답변을 하거나 프로세스를 생성할 때 <b>전문 지식 컨텍스트</b>로 활용됩니다.</p>
+                <p>Selected assets will be used as <b>Expert Knowledge Context</b> for AI-generated designs and responses.</p>
             </div>
         </div>
     );
@@ -122,14 +155,15 @@ export function AssetManager() {
 function AssetItem({ asset, isSelected, onToggle, onRemove }: { asset: Asset, isSelected: boolean, onToggle: () => void, onRemove: () => void }) {
     const isReady = asset.status === 'READY';
     const isAnalyzing = asset.status === 'ANALYZING' || asset.status === 'UPLOADING';
+    const isFailed = asset.status === 'FAILED';
 
     return (
         <div className={clsx(
             "group bg-white rounded-lg border p-3 transition-all relative hover:shadow-sm",
-            isSelected ? "border-indigo-500 ring-1 ring-indigo-500 shadow-sm" : "border-slate-200"
+            isSelected ? "border-indigo-500 ring-1 ring-indigo-500 shadow-sm" : "border-slate-200",
+            isFailed && "border-red-200 bg-red-50/30"
         )}>
             <div className="flex items-start gap-3">
-                {/* 선택 체크박스 */}
                 <button
                     onClick={isReady ? onToggle : undefined}
                     disabled={!isReady}
@@ -149,7 +183,7 @@ function AssetItem({ asset, isSelected, onToggle, onRemove }: { asset: Asset, is
                 </button>
 
                 <div className="flex-1 min-w-0">
-                    <h4 className="text-xs font-bold text-slate-700 truncate pr-6" title={asset.name}>{asset.name}</h4>
+                    <h4 className={clsx("text-xs font-bold truncate pr-6", isFailed ? "text-red-600" : "text-slate-700")} title={asset.name}>{asset.name}</h4>
                     <div className="flex items-center gap-2 mt-1">
                         <span className="text-[9px] uppercase text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
                             {asset.type.split('/')[1] || 'FILE'}
@@ -157,16 +191,14 @@ function AssetItem({ asset, isSelected, onToggle, onRemove }: { asset: Asset, is
                         <span className="text-[9px] text-slate-400">{(asset.size / 1024).toFixed(1)} KB</span>
                     </div>
 
-                    {/* [Updated] description 필드 렌더링 */}
                     {asset.description && (
-                        <div className="mt-2 p-2 bg-slate-50 rounded text-[10px] text-slate-500 leading-relaxed border border-slate-100">
+                        <div className="mt-2 p-2 bg-slate-50 rounded text-[10px] text-slate-500 leading-relaxed border border-slate-100 animate-in fade-in">
                             <span className="font-bold text-indigo-500 mr-1 italic">AI Insight:</span>
                             {asset.description}
                         </div>
                     )}
                 </div>
 
-                {/* 삭제 버튼 */}
                 <button
                     onClick={(e) => { e.stopPropagation(); onRemove(); }}
                     className="absolute top-3 right-3 text-slate-300 hover:text-red-500 rounded p-1 opacity-0 group-hover:opacity-100 transition-all"

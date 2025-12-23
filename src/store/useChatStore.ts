@@ -1,7 +1,9 @@
 import { create } from 'zustand';
 
 /**
- * AI 협업 채팅 및 지식 컨텍스트 상태 관리
+ * Integrated store for AI collaboration chat and knowledge context.
+ * - Manages chat messages
+ * - Manages selected assets (context)
  */
 
 export interface ChatMessage {
@@ -9,32 +11,43 @@ export interface ChatMessage {
     role: 'user' | 'ai' | 'system';
     content: string;
     timestamp: number;
+    // Metadata for UI actions (e.g., generated Job ID)
+    jobId?: string;
+    // Field for potential AI-suggested UI actions
+    action?: {
+        type: string;
+        payload: any;
+    };
 }
 
 interface ChatState {
+    // --- Chat State ---
     messages: ChatMessage[];
     input: string;
     isTyping: boolean;
 
-    // [Phase 4] 지식 컨텍스트 상태 추가
+    // --- Knowledge Context State ---
     selectedAssetIds: string[];
 
+    // --- Actions ---
     setInput: (value: string) => void;
-    addMessage: (role: ChatMessage['role'], content: string) => void;
+    addMessage: (role: ChatMessage['role'], content: string, jobId?: string, action?: ChatMessage['action']) => void;
     setTyping: (isTyping: boolean) => void;
     clearMessages: () => void;
 
-    // [Phase 4] 지식 선택 액션 추가
+    // --- Asset Actions ---
     toggleAssetSelection: (id: string) => void;
     clearSelection: () => void;
+    setSelectedAssets: (ids: string[]) => void;
 }
 
 export const useChatStore = create<ChatState>((set) => ({
+    // Initial State with English welcome message
     messages: [
         {
             id: 'welcome-msg',
             role: 'ai',
-            content: '안녕하세요! 어떤 비즈니스 프로세스를 설계하시겠습니까? 아래 템플릿을 선택하거나 직접 설명해주세요.',
+            content: 'Hello! Which business process would you like to design today? You can get more accurate results by uploading and selecting relevant knowledge files.',
             timestamp: Date.now()
         }
     ],
@@ -42,23 +55,34 @@ export const useChatStore = create<ChatState>((set) => ({
     isTyping: false,
     selectedAssetIds: [],
 
+    // Chat Actions
     setInput: (value) => set({ input: value }),
 
-    addMessage: (role, content) => set((state) => ({
+    addMessage: (role, content, jobId, action) => set((state) => ({
         messages: [
             ...state.messages,
             {
                 id: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
                 role,
                 content,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                jobId,
+                action
             }
         ]
     })),
 
     setTyping: (isTyping) => set({ isTyping }),
-    clearMessages: () => set({ messages: [] }),
+    clearMessages: () => set({
+        messages: [{
+            id: 'welcome-msg',
+            role: 'ai',
+            content: 'Starting a new conversation. How can I assist you?',
+            timestamp: Date.now()
+        }]
+    }),
 
+    // Asset Actions
     toggleAssetSelection: (id) => set((state) => {
         const isSelected = state.selectedAssetIds.includes(id);
         return {
@@ -68,5 +92,6 @@ export const useChatStore = create<ChatState>((set) => ({
         };
     }),
 
+    setSelectedAssets: (ids) => set({ selectedAssetIds: ids }),
     clearSelection: () => set({ selectedAssetIds: [] }),
 }));
