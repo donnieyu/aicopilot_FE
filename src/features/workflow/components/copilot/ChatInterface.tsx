@@ -1,11 +1,16 @@
 import { useEffect, useRef } from 'react';
-import { Send, Sparkles, User, Bot, Paperclip } from 'lucide-react';
+import { Send, Sparkles, User, Bot, Paperclip, Library } from 'lucide-react';
 import clsx from 'clsx';
+// [Fix] 기존에 존재하는 useChatStore를 사용하고 상대 경로를 꼼꼼히 확인하여 수정
 import { useChatStore } from '../../../../store/useChatStore';
 import { useUiStore } from '../../../../store/useUiStore';
-import { useAssetStore } from '../../../../store/useAssetStore';
+import { useWorkflowGenerator } from '../../../../hooks/useWorkflowGenerator';
 
-// Mock Templates (나중에 상수로 분리 가능)
+/**
+ * [Phase 4] 최종 리팩토링된 AI 협업 채팅 인터페이스
+ * 지식 베이스 선택 유무에 따라 적절한 생성 API를 호출하도록 로직을 업데이트했습니다.
+ */
+
 const TEMPLATES = [
     { label: '휴가 신청', prompt: '휴가 신청 및 승인 프로세스를 만들어줘. 직원이 신청하면 팀장이 승인하고, 인사팀에 통보되는 흐름이야.' },
     { label: '비용 정산', prompt: '출장비 정산 프로세스 설계해줘. 영수증 첨부와 100만원 이상 시 본부장 전결 규정이 있어.' },
@@ -13,36 +18,54 @@ const TEMPLATES = [
 ];
 
 export function ChatInterface() {
-    const { messages, input, setInput, addMessage, isTyping, setTyping } = useChatStore();
+    // [Fix] useCopilotStore 대신 확장된 useChatStore 사용
+    const {
+        messages,
+        input,
+        setInput,
+        addMessage,
+        isTyping,
+        setTyping,
+        selectedAssetIds
+    } = useChatStore();
+
     const setActiveTab = useUiStore((state) => state.setActiveCopilotTab);
-    const selectedAssetIds = useAssetStore((state) => state.selectedAssetIds);
+
+    // Workflow Generator 훅 (Phase 4에서 startChatJob 기능이 추가됨을 전제)
+    const { startJob, startChatJob } = useWorkflowGenerator();
+
     const scrollRef = useRef<HTMLDivElement>(null);
 
-    // Auto-scroll to bottom
     useEffect(() => {
         if (scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
         }
     }, [messages, isTyping]);
 
-    const handleSend = () => {
-        if (!input.trim()) return;
+    const handleSend = async () => {
+        if (!input.trim() || isTyping) return;
 
-        // 1. User Message 추가
-        addMessage('user', input);
         const userPrompt = input;
+        addMessage('user', userPrompt);
         setInput('');
         setTyping(true);
 
-        // 2. AI Response Simulation (나중에 백엔드 API 연결)
-        setTimeout(() => {
-            const contextMsg = selectedAssetIds.length > 0
-                ? `(참고한 지식: ${selectedAssetIds.length}건)\n`
-                : '';
+        try {
+            // [Phase 4] 로직 분기: 선택된 지식이 있으면 지식 기반 생성(startChatJob) 호출
+            if (selectedAssetIds.length > 0 && startChatJob) {
+                await startChatJob({ prompt: userPrompt, assetIds: selectedAssetIds });
+                addMessage('ai', `${selectedAssetIds.length}개의 전문 지식을 참고하여 프로세스를 설계하고 있습니다. 잠시만 기다려주세요.`);
+            } else {
+                // 일반 텍스트 기반 생성
+                await startJob(userPrompt);
+                addMessage('ai', `요청하신 "${userPrompt}" 프로세스 설계를 시작합니다.`);
+            }
 
-            addMessage('ai', `${contextMsg}요청하신 "${userPrompt}"에 대한 프로세스 초안을 생성했습니다. 캔버스를 확인해주세요.`);
+        } catch (error) {
+            addMessage('ai', '설계 요청 중 오류가 발생했습니다. 통신 상태를 확인해주세요.');
+        } finally {
             setTyping(false);
-        }, 2000);
+        }
     };
 
     const handleTemplateClick = (prompt: string) => {
@@ -58,14 +81,14 @@ export function ChatInterface() {
 
     return (
         <div className="flex flex-col h-full bg-slate-50">
-            {/* Messages Area */}
+            {/* 메시지 히스토리 */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar" ref={scrollRef}>
-                {messages.length === 1 && (
+                {messages.length <= 1 && (
                     <div className="flex flex-col items-center justify-center py-10 space-y-4 animate-in fade-in slide-in-from-bottom-4">
                         <div className="w-12 h-12 bg-white rounded-full shadow-sm flex items-center justify-center">
                             <Sparkles size={24} className="text-blue-500" />
                         </div>
-                        <p className="text-sm text-slate-500 font-medium">추천 템플릿으로 시작해보세요.</p>
+                        <p className="text-sm text-slate-500 font-medium">어떤 업무 프로세스를 설계해 드릴까요?</p>
                         <div className="grid grid-cols-1 gap-2 w-full px-4">
                             {TEMPLATES.map((tpl, idx) => (
                                 <button
@@ -90,10 +113,10 @@ export function ChatInterface() {
                             {msg.role === 'user' ? <User size={16} className="text-slate-500" /> : <Bot size={18} />}
                         </div>
                         <div className={clsx(
-                            "max-w-[80%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm",
+                            "max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed shadow-sm",
                             msg.role === 'user'
-                                ? "bg-white text-slate-700 rounded-tr-none border border-slate-100"
-                                : "bg-blue-50 text-slate-800 rounded-tl-none border border-blue-100"
+                                ? "bg-blue-600 text-white rounded-tr-none"
+                                : "bg-white text-slate-800 rounded-tl-none border border-slate-100"
                         )}>
                             {msg.content}
                         </div>
@@ -105,21 +128,21 @@ export function ChatInterface() {
                         <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
                             <Bot size={18} />
                         </div>
-                        <div className="bg-slate-100 p-3 rounded-2xl rounded-tl-none flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"></span>
-                            <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce delay-100"></span>
-                            <span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce delay-200"></span>
+                        <div className="bg-slate-200/50 p-3 rounded-2xl rounded-tl-none flex items-center gap-1">
+                            <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce"></span>
+                            <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce delay-100"></span>
+                            <span className="w-1 h-1 bg-slate-400 rounded-full animate-bounce delay-200"></span>
                         </div>
                     </div>
                 )}
             </div>
 
-            {/* Input Area */}
+            {/* 입력 영역 */}
             <div className="p-4 bg-white border-t border-slate-100">
-                {/* Context Indicator */}
+                {/* 지식 컨텍스트 활성화 배지 */}
                 {selectedAssetIds.length > 0 && (
                     <div className="flex items-center gap-2 mb-2 px-1">
-                        <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full flex items-center gap-1 animate-in zoom-in">
                             <Library size={10} />
                             {selectedAssetIds.length} context files active
                         </span>
@@ -130,10 +153,10 @@ export function ChatInterface() {
                     <button
                         onClick={() => setActiveTab('KNOWLEDGE')}
                         className={clsx(
-                            "p-2 rounded-lg hover:bg-slate-200 transition-colors flex-shrink-0",
-                            selectedAssetIds.length > 0 ? "text-indigo-500 bg-indigo-50 hover:bg-indigo-100" : "text-slate-400"
+                            "p-2 rounded-lg transition-colors flex-shrink-0",
+                            selectedAssetIds.length > 0 ? "text-indigo-500 bg-indigo-50 hover:bg-indigo-100" : "text-slate-400 hover:bg-slate-200"
                         )}
-                        title="Manage Knowledge Base"
+                        title="지식 베이스 관리"
                     >
                         <Paperclip size={18} />
                     </button>
@@ -142,7 +165,7 @@ export function ChatInterface() {
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder="Describe a process or give instructions..."
+                        placeholder="설계 지침 또는 수정 요청을 입력하세요..."
                         className="w-full bg-transparent border-none focus:ring-0 text-sm text-slate-700 placeholder:text-slate-400 resize-none py-2 max-h-32 custom-scrollbar"
                         rows={1}
                         style={{ minHeight: '40px' }}
@@ -156,9 +179,6 @@ export function ChatInterface() {
                         <Send size={16} />
                     </button>
                 </div>
-                <p className="text-[10px] text-center text-slate-300 mt-2">
-                    AI can make mistakes. Please review generated workflows.
-                </p>
             </div>
         </div>
     );
