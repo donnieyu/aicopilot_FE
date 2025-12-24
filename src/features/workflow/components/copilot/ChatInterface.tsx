@@ -145,7 +145,7 @@ export function ChatInterface() {
             )}
 
             <div className={clsx(
-                "relative flex flex-col bg-white border border-slate-200 rounded-xl overflow-hidden transition-all w-full",
+                "relative flex flex-col bg-white border justify-end border-slate-200 rounded-xl overflow-hidden transition-all w-full",
                 isCentered ? "shadow-lg border-slate-300" : "shadow-sm",
                 "focus-within:ring-2 focus-within:ring-blue-100 focus-within:border-blue-400 group"
             )}>
@@ -155,13 +155,13 @@ export function ChatInterface() {
                     onKeyDown={handleKeyDown}
                     placeholder="Describe requirement..."
                     className={clsx(
-                        "w-full bg-transparent border-none focus:ring-0 text-[13px] text-slate-800 placeholder:text-slate-400 resize-none pt-3 px-4 pb-10 custom-scrollbar transition-all font-medium leading-relaxed",
+                        "w-full bg-transparent border-none focus:ring-0 text-[13px] focus:outline-none  placeholder:text-slate-400 resize-none pt-3 px-4 pb-10 custom-scrollbar transition-all font-medium leading-relaxed",
                         isCentered ? "min-h-[110px]" : "min-h-[80px]"
                     )}
                     rows={1}
                 />
 
-                <div className="absolute bottom-2 right-2">
+                <div className="w-full p-1 justify-end items-center d-flex">
                     <button
                         onClick={handleSend}
                         disabled={!input.trim() || isTyping}
