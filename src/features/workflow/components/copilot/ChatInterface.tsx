@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { Send, User, Bot, Library, CheckCircle2, Loader2, Circle, Sparkles, AlertCircle, AlertTriangle, Info, Wrench } from 'lucide-react';
 import clsx from 'clsx';
-// [Fix] 경로 해석 오류를 방지하기 위해 상대 경로를 사용하며, 스토어와 훅의 명칭을 정확히 참조합니다.
 import { useChatStore } from '../../../../store/useChatStore';
 import { useWorkflowStore } from '../../../../store/useWorkflowStore';
 import { useWorkflowGenerator } from '../../../../hooks/useWorkflowGenerator';
@@ -10,11 +9,13 @@ import { useQuery } from '@tanstack/react-query';
 import type { ProgressStep, AnalysisResult } from '../../../../types/workflow';
 
 /**
- * [高] 특정 Job의 진행 상태 및 분석 결과를 표시하는 컴포넌트
- * 진행 단계 리스트 아래에 AI의 수정 제안을 테이블 형태로 표시합니다.
+ * [Modified] 특정 Job의 진행 상태 및 분석 결과를 표시하는 컴포넌트
+ * 진행 단계 리스트 아래에 AI의 수정 제안을 테이블 형태로 표시하며,
+ * 수신된 분석 결과를 전역 WorkflowStore와 동기화하여 맵에 아이콘을 표시합니다.
  */
 function ChatJobStatusIndicator({ jobId }: { jobId: string }) {
     const setInput = useChatStore((state) => state.setInput);
+    const setAnalysisResults = useWorkflowStore((state) => state.setAnalysisResults);
 
     const { data: status } = useQuery({
         queryKey: ['chatJobStatus', jobId],
@@ -25,7 +26,14 @@ function ChatJobStatusIndicator({ jobId }: { jobId: string }) {
         },
     });
 
-    // 데이터 로딩 전이거나 진행 단계가 없는 경우 가이드 표시
+    // [New] 감사 결과 전역 스토어 동기화 로직
+    // 백엔드 JobStatus에서 분석 결과가 도착하면 즉시 Process Map의 노드들과 연동됩니다.
+    useEffect(() => {
+        if (status?.analysisResults) {
+            setAnalysisResults(status.analysisResults);
+        }
+    }, [status?.analysisResults, setAnalysisResults]);
+
     if (!status || !status.progressSteps || status.progressSteps.length === 0) {
         return (
             <div className="mt-2 flex items-center gap-2 text-[10px] text-slate-400 animate-pulse px-1 italic">
@@ -36,28 +44,20 @@ function ChatJobStatusIndicator({ jobId }: { jobId: string }) {
     }
 
     const isAllDone = status.state === 'COMPLETED';
-    const analysisResults = status.analysisResults || []; // [Fix] Optional field safety
+    const analysisResults = status.analysisResults || [];
     const hasAnalysis = analysisResults.length > 0;
 
-    /**
-     * 분석 제안 아이템 클릭 시 수정 프롬프트를 입력창에 주입합니다.
-     */
     const handleRowClick = (result: AnalysisResult) => {
         if (!result.suggestion) return;
-
-        // 사용자가 즉시 수정(MODIFY) 인텐트로 연결할 수 있도록 프롬프트 가공
         const prompt = result.targetNodeId
             ? `Fix this issue for node [${result.targetNodeId}]: ${result.suggestion}`
             : `Optimize the workflow: ${result.suggestion}`;
-
         setInput(prompt);
-        // 포커스는 InputArea의 autoFocus 속성에 의해 자연스럽게 이동합니다.
     };
 
     return (
         <div className="mt-2 pt-2 border-t border-blue-50/50 space-y-3 animate-in fade-in slide-in-from-top-1">
-
-            {/* 1. 진행 단계 리스트 (Progress Steps) */}
+            {/* 1. 진행 단계 리스트 */}
             <div className="space-y-1.5">
                 {status.progressSteps.map((step: ProgressStep) => {
                     const isInProgress = step.status === 'IN_PROGRESS';
@@ -86,7 +86,7 @@ function ChatJobStatusIndicator({ jobId }: { jobId: string }) {
                 })}
             </div>
 
-            {/* 2. AI 분석 피드백 테이블 (Architect's Feedback) */}
+            {/* 2. AI 분석 피드백 테이블 */}
             {isAllDone && hasAnalysis && (
                 <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm animate-in slide-in-from-bottom-2 duration-500">
                     <div className="bg-slate-50 px-3 py-2 border-b border-slate-200 flex items-center justify-between">
@@ -99,7 +99,6 @@ function ChatJobStatusIndicator({ jobId }: { jobId: string }) {
                         </span>
                     </div>
 
-                    {/* Table Structure */}
                     <div className="w-full overflow-x-auto">
                         <table className="w-full text-left border-collapse">
                             <thead className="bg-slate-50/50 border-b border-slate-100">
@@ -155,6 +154,8 @@ function ChatJobStatusIndicator({ jobId }: { jobId: string }) {
     );
 }
 
+// ... (InputArea 및 ChatInterface 컴포넌트 로직은 유지됨)
+
 interface InputAreaProps {
     input: string;
     setInput: (val: string) => void;
@@ -165,9 +166,6 @@ interface InputAreaProps {
     isCentered?: boolean;
 }
 
-/**
- * 입력 영역 컴포넌트
- */
 function InputArea({
                        input,
                        setInput,

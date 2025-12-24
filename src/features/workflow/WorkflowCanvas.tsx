@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import ReactFlow, {
     Background,
     Controls,
@@ -8,9 +8,9 @@ import ReactFlow, {
     type Node,
     type NodeTypes,
     type EdgeTypes,
-    // [Fix] Removed 'Edge' type import as it's not used directly here
 } from 'reactflow';
 import { useWorkflowStore } from '../../store/useWorkflowStore';
+import { useWorkflowGenerator } from '../../hooks/useWorkflowGenerator';
 import {
     UserTaskNode,
     ServiceTaskNode,
@@ -20,11 +20,10 @@ import {
     SwimlaneNode
 } from './nodes/CustomNodes';
 import PlusEdge from './edges/PlusEdge';
-import { AnalysisConsole } from './components/AnalysisConsole';
 import 'reactflow/dist/style.css';
-import { Lock, Unlock } from 'lucide-react';
+import { Lock, Unlock, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
-import { useEdgeHover } from '../../hooks/useEdgeHover'; // [New] Import Hook
+import { useEdgeHover } from '../../hooks/useEdgeHover';
 
 const nodeTypes: NodeTypes = {
     USER_TASK: UserTaskNode,
@@ -45,9 +44,29 @@ interface WorkflowCanvasProps {
 
 const FlowContent = ({ onNodeClick }: WorkflowCanvasProps) => {
     const { nodes, edges, onNodesChange, onEdgesChange, onConnect } = useWorkflowStore();
-    const [isLocked, setIsLocked] = useState(false);
 
-    // [New] Use Global Edge Hover Hook
+    // 전역 잠금 상태 구독
+    const isLocked = useWorkflowStore(state => state.isLocked);
+    const setIsLocked = useWorkflowStore(state => state.setIsLocked);
+
+    // 채팅/생성 진행 상태 구독
+    const { isProcessing } = useWorkflowGenerator();
+
+    // 채팅 시작 전의 잠금 상태를 저장하기 위한 ref
+    const previousLockState = useRef<boolean>(isLocked);
+
+    // 채팅 진행 상태에 따른 잠금 제어 로직
+    useEffect(() => {
+        if (isProcessing) {
+            // 작업 시작 시 현재 상태 저장 후 강제 잠금
+            previousLockState.current = isLocked;
+            setIsLocked(true);
+        } else {
+            // 작업 종료 시 저장했던 이전 상태로 복구
+            setIsLocked(previousLockState.current);
+        }
+    }, [isProcessing, setIsLocked]);
+
     const { handleEdgeMouseEnter, handleEdgeMouseLeave } = useEdgeHover();
 
     const handleNodeClick = useCallback((event: React.MouseEvent, node: Node) => {
@@ -69,17 +88,14 @@ const FlowContent = ({ onNodeClick }: WorkflowCanvasProps) => {
                 defaultEdgeOptions={{ type: 'PLUS_EDGE' }}
                 fitView
                 fitViewOptions={{ padding: 0.2 }}
-                attributionPosition="bottom-right"
-                snapToGrid={true}
-                snapGrid={[15, 15]}
                 onNodeClick={handleNodeClick}
+                // 잠금 상태에 따라 노드 조작 제한
                 nodesDraggable={!isLocked}
                 nodesConnectable={!isLocked}
                 elementsSelectable={true}
                 panOnDrag={true}
                 zoomOnScroll={true}
                 edgesFocusable={false}
-                // [New] Connect Handlers
                 onEdgeMouseEnter={handleEdgeMouseEnter}
                 onEdgeMouseLeave={handleEdgeMouseLeave}
             >
@@ -97,9 +113,12 @@ const FlowContent = ({ onNodeClick }: WorkflowCanvasProps) => {
                 <Panel position="top-center" className="bg-white/90 backdrop-blur-sm p-1.5 rounded-full shadow-lg border border-slate-200 mt-4 flex gap-1">
                     <button
                         onClick={() => setIsLocked(true)}
+                        // 채팅 중일 때는 이미 잠긴 상태이므로 버튼 무의미
+                        disabled={isProcessing}
                         className={clsx(
                             "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all",
-                            isLocked ? "bg-slate-800 text-white shadow-sm" : "text-slate-500 hover:bg-slate-100"
+                            isLocked ? "bg-slate-800 text-white shadow-sm" : "text-slate-500 hover:bg-slate-100",
+                            isProcessing && "opacity-50 cursor-not-allowed"
                         )}
                     >
                         <Lock size={12} />
@@ -107,18 +126,23 @@ const FlowContent = ({ onNodeClick }: WorkflowCanvasProps) => {
                     </button>
                     <button
                         onClick={() => setIsLocked(false)}
+                        // 채팅 중일 때는 수동 잠금 해제 금지
+                        disabled={isProcessing}
                         className={clsx(
                             "flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition-all",
-                            !isLocked ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-100"
+                            !isLocked ? "bg-blue-600 text-white shadow-sm" : "text-slate-500 hover:bg-slate-100",
+                            isProcessing && "opacity-50 cursor-not-allowed"
                         )}
                     >
-                        <Unlock size={12} />
-                        <span>Edit</span>
+                        {isProcessing ? (
+                            <Loader2 size={12} className="animate-spin" />
+                        ) : (
+                            <Unlock size={12} />
+                        )}
+                        <span>{isProcessing ? 'AI Working...' : 'Edit'}</span>
                     </button>
                 </Panel>
             </ReactFlow>
-
-            <AnalysisConsole />
         </>
     );
 };

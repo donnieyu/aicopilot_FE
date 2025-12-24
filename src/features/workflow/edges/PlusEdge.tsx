@@ -2,11 +2,16 @@ import { useState, useRef, useEffect } from 'react';
 import { BaseEdge, EdgeLabelRenderer, getSmoothStepPath, useReactFlow } from 'reactflow';
 import type { EdgeProps } from 'reactflow';
 import { Plus, Trash2 } from 'lucide-react';
+import clsx from 'clsx';
+
+// 상대 경로를 사용하여 정확하게 참조를 해결합니다.
 import { useWorkflowStore } from '../../../store/useWorkflowStore';
 import { EdgeContextMenu } from '../components/EdgeContextMenu';
-import clsx from 'clsx';
-// [Removed] useEdgeHover hook import removal as it's for Canvas only
 
+/**
+ * 플러스 버튼과 삭제 버튼이 포함된 커스텀 엣지 컴포넌트.
+ * 잠금(Locked) 상태에서는 편집 도구가 표시되지 않습니다.
+ */
 export default function PlusEdge({
                                      id,
                                      sourceX,
@@ -30,11 +35,11 @@ export default function PlusEdge({
 
     const hoveredEdges = useWorkflowStore((state) => state.hoveredEdges);
     const insertNode = useWorkflowStore((state) => state.insertNode);
-    // [New] Direct store actions
     const setEdgeHover = useWorkflowStore((state) => state.setEdgeHover);
     const setEdgePin = useWorkflowStore((state) => state.setEdgePin);
 
-    // [Removed] useEdgeHover call
+    // 전역 잠금 상태 구독
+    const isLocked = useWorkflowStore((state) => state.isLocked);
 
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -55,33 +60,34 @@ export default function PlusEdge({
 
     const onAddClick = (event: React.MouseEvent) => {
         event.stopPropagation();
+        if (isLocked) return; // 잠금 상태 시 동작 방지
         setIsMenuOpen((prev) => !prev);
     };
 
     const onDeleteClick = (event: React.MouseEvent) => {
         event.stopPropagation();
+        if (isLocked) return; // 잠금 상태 시 동작 방지
         deleteElements({ edges: [{ id }] });
     };
 
     const handleInsert = async (type: 'USER_TASK' | 'SERVICE_TASK' | 'EXCLUSIVE_GATEWAY') => {
+        if (isLocked) return;
         await insertNode(id, type);
         setIsMenuOpen(false);
     };
 
-    // Label Interaction Handlers
     const handleLabelEnter = () => {
+        if (isLocked) return;
         setEdgePin(id, true);
         setEdgeHover(id, true);
     };
 
     const handleLabelLeave = () => {
         setEdgePin(id, false);
-        // Canvas's onEdgeMouseLeave will handle the timeout if mouse moved out of everything.
-        // If mouse moved back to Edge, onEdgeMouseEnter will keep it on.
-        // We set unpinned, so next timer execution will successfully hide it.
     };
 
-    const isVisible = isHovered || isMenuOpen;
+    // 잠금 상태(isLocked)일 때는 호버되어도 편집 버튼을 노출하지 않음
+    const isVisible = (isHovered || isMenuOpen) && !isLocked;
 
     return (
         <>
@@ -91,8 +97,7 @@ export default function PlusEdge({
                 strokeWidth={20}
                 stroke="transparent"
                 className="react-flow__edge-path-selector"
-                style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
-                // [Note] No handlers here, Canvas handles edge hover
+                style={{ cursor: isLocked ? 'default' : 'pointer', pointerEvents: isLocked ? 'none' : 'stroke' }}
             />
 
             <BaseEdge
@@ -114,7 +119,8 @@ export default function PlusEdge({
                     style={{
                         position: 'absolute',
                         transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-                        pointerEvents: 'all',
+                        // 잠금 상태 시 레이블 영역 상호작용 차단
+                        pointerEvents: isLocked ? 'none' : 'all',
                         zIndex: 100
                     }}
                     className="nodrag nopan flex items-center gap-1"
@@ -148,7 +154,7 @@ export default function PlusEdge({
                         </button>
                     </div>
 
-                    {isMenuOpen && (
+                    {isMenuOpen && !isLocked && (
                         <div className="absolute top-8 left-1/2 -translate-x-1/2">
                             <EdgeContextMenu
                                 x={0}
