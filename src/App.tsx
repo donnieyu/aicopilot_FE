@@ -1,24 +1,22 @@
 import { useEffect, useState } from 'react';
+// [Fix] 상대 경로를 확인하여 임포트 오류를 수정합니다.
+// App.tsx가 src/ 폴더에 위치하므로 동일 레벨의 폴더들을 참조합니다.
 import { useWorkflowGenerator } from './hooks/useWorkflowGenerator';
 import { useWorkflowStore } from './store/useWorkflowStore';
-import { useUiStore } from './store/useUiStore';
 import { JsonInspector } from './components/JsonInspector';
-import { GeneratingOverlay } from './features/workflow/components/GeneratingOverlay';
-import { AiStatusWidget } from './features/workflow/components/AiStatusWidget';
 import { MainWorkspace } from './features/workflow/components/MainWorkspace';
 import { CopilotPanel } from './features/workflow/components/copilot/CopilotPanel';
 import { useAutoAnalysis } from './hooks/useAutoAnalysis';
 
 /**
- * 리팩토링된 메인 App 컴포넌트
- * - LandingPage 제거: Zero-Step Chat-Driven 인터페이스 구현
- * - 좌/우 2분할 Flex Layout (Workspace / Copilot)
+ * 메인 애플리케이션 컴포넌트
+ * [수정 사항] 사용자의 요청에 따라 중복되는 AiStatusWidget 팝업을 제거하여
+ * 더 깔끔하고 전문적인 디자인을 구현했습니다.
  */
 function App() {
     const [initialTopic, setInitialTopic] = useState('');
     const [inspectorOpen, setLocalInspectorOpen] = useState(false);
 
-    // AI 워크플로우 생성 상태 관리
     const {
         jobStatus,
         isProcessReady,
@@ -28,21 +26,18 @@ function App() {
         isCompleted
     } = useWorkflowGenerator();
 
-    // Zustand 스토어 액션
     const setProcess = useWorkflowStore((state) => state.setProcess);
     const setDataModel = useWorkflowStore((state) => state.setDataModel);
     const setFormDefinitions = useWorkflowStore((state) => state.setFormDefinitions);
 
-    // 실시간 분석 Nudge (Shadow Architect)
+    // 그래프 오류 자동 분석 훅
     useAutoAnalysis();
 
-    // 백엔드 작업 상태(JobStatus) 동기화
     useEffect(() => {
         if (jobStatus) {
             if (jobStatus.processResponse?.processName) {
                 setInitialTopic(jobStatus.processResponse.processName);
             }
-
             if (jobStatus.processResponse) {
                 setProcess(jobStatus.processResponse);
             }
@@ -58,27 +53,23 @@ function App() {
         }
     }, [jobStatus, setProcess, setDataModel, setFormDefinitions]);
 
-    // 전체 로딩 상태 계산 (초기 맵 생성 시에만 오버레이 표시)
+    // 초기 변환 중이거나 프로세스가 준비되지 않은 상태에서 프로세싱 중일 때 캔버스에 로딩 오버레이 표시
     const showLoading = isTransforming || (isProcessing && !isProcessReady);
 
     return (
-        <div className="flex h-screen w-screen overflow-hidden bg-slate-50">
-            {/* 1. Global Overlays & Widgets */}
-            <GeneratingOverlay
-                isVisible={showLoading}
-                message={jobStatus?.message || "AI Architect is working..."}
-            />
-            <AiStatusWidget status={jobStatus} message={jobStatus?.message || ''} />
+        <div className="flex h-screen w-screen overflow-hidden bg-slate-50 font-sans">
+            {/* [삭제됨] AiStatusWidget: 오른쪽 하단 팝업이 제거되었습니다.
+               진행 상태는 이제 채팅창과 캔버스 오버레이를 통해 확인할 수 있습니다.
+            */}
+
             <JsonInspector
                 isOpen={inspectorOpen}
                 onClose={() => setLocalInspectorOpen(false)}
                 data={jobStatus || null}
             />
 
-            {/* 2. Main Layout (Flex Container) */}
             <main className="flex flex-1 w-full h-full">
-
-                {/* [좌] Main Workspace Area: Canvas, Data, Form 탭 */}
+                {/* 왼쪽 영역: 워크스페이스 (캔버스, 데이터, 폼) */}
                 <div className="flex-1 min-w-0 h-full relative z-0">
                     <MainWorkspace
                         jobStatus={jobStatus}
@@ -88,14 +79,14 @@ function App() {
                         setInspectorOpen={setLocalInspectorOpen}
                         isSuggesting={isSuggesting}
                         handleTriggerSuggestion={() => {}}
+                        showGeneratingOverlay={showLoading}
                     />
                 </div>
 
-                {/* [우] Persistent Copilot Panel: Fixed Width (450px) */}
-                <div className="w-[450px] flex-shrink-0 h-full border-l border-slate-200 z-10 shadow-xl bg-white">
+                {/* 오른쪽 영역: AI 코파일럿 패널 */}
+                <div className="w-[420px] flex-shrink-0 h-full border-l border-slate-200 z-10 shadow-xl bg-white">
                     <CopilotPanel />
                 </div>
-
             </main>
         </div>
     );

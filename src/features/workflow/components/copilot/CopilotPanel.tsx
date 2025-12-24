@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { MessageSquare, Library, X } from 'lucide-react';
+import { MessageSquare, Library } from 'lucide-react';
 import clsx from 'clsx';
 import { useUiStore } from '../../../../store/useUiStore';
 import { ChatInterface } from './ChatInterface';
@@ -10,7 +9,7 @@ export function CopilotPanel() {
     const setActiveTab = useUiStore((state) => state.setActiveCopilotTab);
 
     return (
-        <div className="h-full flex flex-col bg-white border-l border-slate-200 shadow-xl w-[450px] relative z-40">
+        <div className="h-full flex flex-col bg-white border-l border-slate-200 shadow-xl relative z-40">
             {/* Header Tabs */}
             <div className="flex border-b border-slate-200">
                 <button

@@ -12,10 +12,14 @@ interface UiState {
     activeCopilotTab: CopilotTab;
     setActiveCopilotTab: (tab: CopilotTab) => void;
 
-    // Node Config Overlay (Canvas 내부 오버레이)
+    // Node Config Overlay
     isNodeConfigOpen: boolean;
     setNodeConfigOpen: (isOpen: boolean) => void;
     toggleNodeConfig: () => void;
+
+    // [New] Global Job ID for cross-component sync
+    currentJobId: string | null;
+    setCurrentJobId: (id: string | null) => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -28,4 +32,8 @@ export const useUiStore = create<UiState>((set) => ({
     isNodeConfigOpen: false,
     setNodeConfigOpen: (isOpen) => set({ isNodeConfigOpen: isOpen }),
     toggleNodeConfig: () => set((state) => ({ isNodeConfigOpen: !state.isNodeConfigOpen })),
+
+    // Initialize Job ID state
+    currentJobId: null,
+    setCurrentJobId: (id) => set({ currentJobId: id }),
 }));

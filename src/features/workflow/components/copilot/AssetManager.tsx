@@ -2,7 +2,7 @@ import { useRef, useEffect } from 'react';
 import { UploadCloud, FileText, CheckSquare, Square, Trash2, Loader2, Info } from 'lucide-react';
 import clsx from 'clsx';
 // Relative paths strictly maintained
-import { useAssetStore, type Asset } from '../../../../store/useAssetStore';
+import {useAssetStore, type Asset, type AssetStatus} from '../../../../store/useAssetStore';
 import { useChatStore } from '../../../../store/useChatStore';
 import { uploadAssetFile, getAssetStatus } from '../../../../api/workflow';
 
@@ -16,7 +16,7 @@ export function AssetManager() {
     const { selectedAssetIds, toggleAssetSelection, setSelectedAssets } = useChatStore();
 
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const pollingIntervals = useRef<Record<string, NodeJS.Timeout>>({});
+    const pollingIntervals = useRef<Record<string, ReturnType<typeof setInterval>>>({});
 
     useEffect(() => {
         return () => {
@@ -66,7 +66,7 @@ export function AssetManager() {
                     name: file.name,
                     type: file.type,
                     size: file.size,
-                    status: status as any,
+                    status: status as AssetStatus,
                     uploadTime: Date.now()
                 };
                 addAsset(newAsset);
