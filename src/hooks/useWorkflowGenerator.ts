@@ -9,41 +9,38 @@ import {
 import { useUiStore } from '../store/useUiStore';
 
 /**
- * Enhanced custom hook for workflow generation.
- * Now uses global state for jobId to sync between Chat and Canvas.
+ * 전역 상태를 활용하여 여러 컴포넌트에서 동일한 작업을 추적하는 생성 훅
  */
 export const useWorkflowGenerator = () => {
-    // [Fix] Access jobId from global UiStore instead of local useState
     const { currentJobId, setCurrentJobId } = useUiStore();
 
-    // 1. [Mode A] Start simple text-based process generation
+    // 1. 일반 텍스트 기반 생성
     const { mutateAsync: startJob, isPending: isStarting } = useMutation({
         mutationFn: startProcessGeneration,
         onSuccess: (data) => {
             setCurrentJobId(data.jobId);
-        },
-        onError: (error) => {
-            console.error('Failed to start standard job:', error);
-            alert('Failed to request the design task. Please check your connection.');
         }
     });
 
-    // 2. Chat-based generation with knowledge context
+    // 2. [Update] 지식 및 캔버스 기반 채팅 연동
     const { mutateAsync: startChatJob, isPending: isChatStarting } = useMutation({
-        mutationFn: ({ prompt, assetIds }: { prompt: string, assetIds: string[] }) =>
-            chatWithAi(prompt, assetIds),
+        mutationFn: ({
+                         prompt,
+                         assetIds,
+                         currentProcessJson
+                     }: {
+            prompt: string,
+            assetIds: string[],
+            currentProcessJson?: string
+        }) => chatWithAi(prompt, assetIds, currentProcessJson),
         onSuccess: (data) => {
             if (data.jobId) {
                 setCurrentJobId(data.jobId);
             }
-        },
-        onError: (error) => {
-            console.error('Failed to start chat interaction:', error);
-            alert('An error occurred during chat interaction.');
         }
     });
 
-    // 3. [Mode B] Transform outline list into process map
+    // 3. 리스트 -> 맵 변환
     const { mutate: startTransformation, isPending: isTransforming } = useMutation({
         mutationFn: transformProcess,
         onSuccess: (data) => {
@@ -51,7 +48,7 @@ export const useWorkflowGenerator = () => {
         }
     });
 
-    // 4. Backend status Polling logic (reacts to global currentJobId)
+    // 4. 전역 Job ID 상태 폴링
     const { data: jobStatus, error: pollError } = useQuery({
         queryKey: ['jobStatus', currentJobId],
         queryFn: () => getJobStatus(currentJobId!),
@@ -65,7 +62,7 @@ export const useWorkflowGenerator = () => {
         },
     });
 
-    // 5. Derived state variables
+    // 5. 파생 상태
     const isProcessing = jobStatus?.state === 'PENDING' || jobStatus?.state === 'PROCESSING';
     const isCompleted = jobStatus?.state === 'COMPLETED';
     const isProcessReady = !!jobStatus?.processResponse;
@@ -73,9 +70,6 @@ export const useWorkflowGenerator = () => {
     const { mutateAsync: getSuggestions, isPending: isSuggesting } = useMutation({
         mutationFn: ({ graphJson, focusNodeId, jobId }: { graphJson: string, focusNodeId: string, jobId: string }) =>
             suggestNextSteps(graphJson, focusNodeId, jobId),
-        onError: (error) => {
-            console.error('Failed to get AI suggestions:', error);
-        }
     });
 
     return {
