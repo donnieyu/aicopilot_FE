@@ -32,14 +32,14 @@ export interface BranchCondition {
 }
 
 // ----------------------------------------------------------------------
-// [NEW] Asset Traceability Types
+// [NEW] 자산 추적(Asset Traceability) 타입
 // ----------------------------------------------------------------------
 
 export interface SourceRect {
-    x: number; // Percentage (0-100)
-    y: number; // Percentage (0-100)
-    w: number; // Percentage (0-100)
-    h: number; // Percentage (0-100)
+    x: number; // 퍼센트 (0-100)
+    y: number; // 퍼센트 (0-100)
+    w: number; // 퍼센트 (0-100)
+    h: number; // 퍼센트 (0-100)
 }
 
 export interface SourceReference {
@@ -90,7 +90,7 @@ export interface ProcessResponse {
 }
 
 // ----------------------------------------------------------------------
-// [NEW] Process Definition Types (Mode B: Outliner)
+// [NEW] 프로세스 정의 타입 (Mode B: Outliner)
 // ----------------------------------------------------------------------
 
 export interface ProcessStep {
@@ -110,7 +110,7 @@ export interface ProcessDefinition {
 }
 
 // ----------------------------------------------------------------------
-// [NEW] Data Entity Types (Replaces 'any' for dataEntitiesResponse)
+// [NEW] 데이터 엔티티 타입 (dataEntitiesResponse용)
 // ----------------------------------------------------------------------
 
 export type DataEntityType =
@@ -161,7 +161,7 @@ export interface DataEntitiesResponse {
 }
 
 // ----------------------------------------------------------------------
-// [NEW] Form UX Types (Replaces 'any' for formResponse)
+// [NEW] Form UX 타입 (formResponse용)
 // ----------------------------------------------------------------------
 
 export type FormFieldComponent =
@@ -175,7 +175,7 @@ export type FormFieldComponent =
 
 export interface FormField {
     id: string;
-    entityAlias: string; // Must match DataEntity.alias
+    entityAlias: string; // DataEntity.alias와 일치해야 함
     label: string;
     component: FormFieldComponent;
     required: boolean;
@@ -206,6 +206,20 @@ export interface FormResponse {
 // ----------------------------------------------------------------------
 
 /**
+ * [New] 진행 단계 상태 타입
+ */
+export type ProgressStepStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'FAILED';
+
+/**
+ * [New] 진행 단계 정보
+ */
+export interface ProgressStep {
+    id: string;
+    label: string;
+    status: ProgressStepStatus;
+}
+
+/**
  * Java Record: JobStatus (Polling Response)
  */
 export interface JobStatus {
@@ -217,6 +231,9 @@ export interface JobStatus {
     startTime: number;
     totalElapsedMillis: number;
 
+    // [New] 진행 단계 리스트
+    progressSteps?: ProgressStep[];
+
     // 단계별 소요 시간
     stageDurations?: Record<string, number>;
 
@@ -224,6 +241,9 @@ export interface JobStatus {
     processResponse?: ProcessResponse;
     dataEntitiesResponse?: DataEntitiesResponse;
     formResponse?: FormResponse;
+
+    // [New] 분석 결과 리스트 (Audit)
+    analysisResults?: AnalysisResult[];
 }
 
 /**
@@ -242,7 +262,7 @@ export interface SuggestionResponse {
 }
 
 // ----------------------------------------------------------------------
-// [NEW] Analysis Result Type (Shadow Architect)
+// [NEW] 분석 결과 타입 (Shadow Architect)
 // ----------------------------------------------------------------------
 export interface AnalysisResult {
     targetNodeId: string;

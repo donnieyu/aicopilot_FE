@@ -43,7 +43,6 @@ export function MainWorkspace({
                                   isInspectorOpen, // Correctly destructured
                                   setInspectorOpen, // Correctly destructured
                                   isSuggesting,
-                                  handleTriggerSuggestion, // [Fix] Added missing destructuring
                                   showGeneratingOverlay
                               }: MainWorkspaceProps) {
     const { mainView, setMainView } = useUiStore();
