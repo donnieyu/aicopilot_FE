@@ -7,17 +7,20 @@
 
 AI-Native Workflow Designer is an AI-powered workflow modeler that helps users complete **Executable Process Definitions** through natural language and intuitive interactions without complex setups.
 
+## ⚖️ Development Philosophy
+### Vibe Coding
+This project is a product of "Vibe Coding." The entire development workflow involved a comprehensive review of the codebase and structural analysis, followed by an intensive AI-human collaborative process to design and implement the features.
+
 ## 🚀 Project Overview
 
 This project is a **Design Time** tool for defining and designing business processes, not a runtime where business logic is executed.
 
-## Copilot v1.0
-### Core Philosophy: "Seamless Co-Architect"
+## Core Philosophy: "Seamless Co-Architect"
 
 We define AI not merely as a generative tool but as a **'Co-Architect'** that designs systems together with the user.
 When a user sets up the structure, the AI understands the context of the data, identifies logical gaps, offers suggestions, and simultaneously designs the data, UI, and logic.
 
-### ✨ Key Features
+## ✨ Key Features
 
 * **⚡ Natural Language-Based Process Drafting (AI Drafting)**
   * Analyzes user requirements to automatically generate a structured step list.
@@ -37,24 +40,24 @@ When a user sets up the structure, the AI understands the context of the data, i
 * **🖼️ Image-Based Process Generation (Vision-Driven Generation)**
   * Upload a BPMN image or whiteboard photo, and AI analyzes it to convert it into a digital process.
 
-### 🛠️ Tech Stack
+## 🛠️ Tech Stack
 
-#### Core
+### Core
 * **Framework:** [React 18+](https://react.dev/)
 * **Language:** [TypeScript](https://www.typescriptlang.org/)
 * **Build Tool:** [Vite](https://vitejs.dev/)
 
-#### State Management & Data Fetching
+### State Management & Data Fetching
 * **Client State:** [Zustand](https://github.com/pmndrs/zustand) (Concise and powerful global state management)
 * **Server State:** [TanStack Query (React Query)](https://tanstack.com/query/latest) (Server data synchronization and caching)
 
-#### UI & Visualization
+### UI & Visualization
 * **Diagram:** [React Flow](https://reactflow.dev/) (Node-based workflow visualization)
 * **Layout Engine:** [Dagre](https://github.com/dagrejs/dagre) (Automatic layout calculation)
 * **Styling:** [Tailwind CSS](https://tailwindcss.com/) (Utility-first CSS framework)
 * **Icons:** [Lucide React](https://lucide.dev/)
 
-#### HTTP Client
+### HTTP Client
 * **Axios:** API communication
 
 ## 📦 Installation & Execution (Getting Started)
