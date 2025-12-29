@@ -1,4 +1,4 @@
-import { ButtonHTMLAttributes } from 'react';
+import type { ButtonHTMLAttributes } from 'react';
 import { Sparkles, Loader2 } from 'lucide-react';
 import clsx from 'clsx';
 
