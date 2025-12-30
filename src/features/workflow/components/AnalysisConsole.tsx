@@ -10,7 +10,6 @@ import {
     Wrench,
     CheckCircle2, // [New] Healthy Icon
     RefreshCw,    // [New] Manual Trigger Icon
-    Activity      // [New] Analysis Icon
 } from 'lucide-react';
 import clsx from 'clsx';
 import { useReactFlow } from 'reactflow';
