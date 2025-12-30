@@ -6,7 +6,6 @@ import { useWorkflowStore } from './store/useWorkflowStore';
 import { JsonInspector } from './components/JsonInspector';
 import { MainWorkspace } from './features/workflow/components/MainWorkspace';
 import { CopilotPanel } from './features/workflow/components/copilot/CopilotPanel';
-import { useAutoAnalysis } from './hooks/useAutoAnalysis';
 
 /**
  * 메인 애플리케이션 컴포넌트
@@ -29,9 +28,6 @@ function App() {
     const setProcess = useWorkflowStore((state) => state.setProcess);
     const setDataModel = useWorkflowStore((state) => state.setDataModel);
     const setFormDefinitions = useWorkflowStore((state) => state.setFormDefinitions);
-
-    // 그래프 오류 자동 분석 훅
-    useAutoAnalysis();
 
     useEffect(() => {
         if (jobStatus) {

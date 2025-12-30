@@ -5,7 +5,6 @@ import {
     ListFilter,
     Plus
 } from 'lucide-react';
-import clsx from 'clsx';
 import { useWorkflowStore } from '../../../store/useWorkflowStore';
 import type { DataEntity, DataEntitiesGroup } from '../../../types/workflow';
 import { CreateEntityModal } from './forms/CreateEntityModal';
