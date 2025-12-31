@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const baseURL = import.meta.env.VITE_API_BASE_URL;
+// const baseURL = import.meta.env.VITE_API_BASE_URL;
+const baseURL = "";
 
 // 기본 Axios 인스턴스 설정
 export const client = axios.create({
