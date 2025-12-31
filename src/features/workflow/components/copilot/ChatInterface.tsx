@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import {useEffect, useRef} from 'react';
 import { Send, User, Bot, Library, CheckCircle2, Loader2, Circle, Sparkles, AlertCircle, AlertTriangle, Info, Wrench } from 'lucide-react';
 import clsx from 'clsx';
 import { useChatStore } from '../../../../store/useChatStore';
@@ -7,6 +7,7 @@ import { useWorkflowGenerator } from '../../../../hooks/useWorkflowGenerator';
 import { getJobStatus } from '../../../../api/workflow';
 import { useQuery } from '@tanstack/react-query';
 import type { ProgressStep, AnalysisResult } from '../../../../types/workflow';
+import type {CopilotTab} from "../../../../store/useUiStore.ts";
 
 /**
  * [Modified] 특정 Job의 진행 상태 및 분석 결과를 표시하는 컴포넌트
@@ -164,6 +165,7 @@ interface InputAreaProps {
     isTyping: boolean;
     selectedAssetIds: string[];
     isCentered?: boolean;
+    setActiveTab: (tab: CopilotTab) => void;
 }
 
 function InputArea({
@@ -173,7 +175,8 @@ function InputArea({
                        handleKeyDown,
                        isTyping,
                        selectedAssetIds,
-                       isCentered = false
+                       isCentered = false,
+                        setActiveTab
                    }: InputAreaProps) {
     return (
         <div className={clsx(
@@ -182,10 +185,12 @@ function InputArea({
         )}>
             {selectedAssetIds.length > 0 && (
                 <div className="w-full flex items-center gap-2 mb-1 px-1">
-                    <span className="text-[8px] font-black text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded flex items-center gap-1 border border-indigo-100 uppercase tracking-tighter">
+                    <button className="text-[8px] font-black text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded flex items-center gap-1 border border-indigo-100 uppercase tracking-tighter"
+                            onClick={() => setActiveTab('KNOWLEDGE')}
+                    >
                         <Library size={8} />
                         {selectedAssetIds.length} Contexts Active
-                    </span>
+                    </button>
                 </div>
             )}
 
@@ -229,7 +234,7 @@ const TEMPLATES = [
     { label: 'Expense Reimbursement', prompt: 'Design a process for travel expense reimbursement. Include receipt attachment and approval by the head for amounts over $1,000.' }
 ];
 
-export function ChatInterface() {
+export function ChatInterface({setActiveTab} : {setActiveTab: (tab: CopilotTab) => void}) {
     const {
         messages,
         input,
@@ -237,7 +242,7 @@ export function ChatInterface() {
         addMessage,
         isTyping,
         setTyping,
-        selectedAssetIds
+        selectedAssetIds,
     } = useChatStore();
 
     const { startChatJob } = useWorkflowGenerator();
@@ -247,8 +252,14 @@ export function ChatInterface() {
     const isInitial = messages.length === 0;
 
     useEffect(() => {
-        if (scrollRef.current) {
-            scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+        if (lastUserMessageRef.current && scrollRef.current) {
+            // 마지막 사용자 메시지의 상단 위치로 스크롤 이동
+            const targetTop = lastUserMessageRef.current.offsetTop;
+
+            scrollRef.current.scrollTo({
+                top: targetTop - 16, // 상단 여백 16px 확보
+                behavior: 'smooth'
+            });
         }
     }, [messages, isTyping]);
 
@@ -292,6 +303,8 @@ export function ChatInterface() {
         }
     };
 
+    const lastUserMessageRef = useRef<HTMLDivElement>(null);
+
     return (
         <div className="flex flex-col h-full bg-white overflow-hidden relative">
             {isInitial ? (
@@ -314,6 +327,7 @@ export function ChatInterface() {
                         isTyping={isTyping}
                         selectedAssetIds={selectedAssetIds}
                         isCentered={true}
+                        setActiveTab={setActiveTab}
                     />
 
                     <div className="mt-6 w-full max-w-xl grid grid-cols-1 sm:grid-cols-2 gap-2 px-4 animate-in slide-in-from-bottom-2 duration-700 delay-200">
@@ -331,26 +345,40 @@ export function ChatInterface() {
                 </div>
             ) : (
                 <>
-                    <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar pb-32 bg-slate-50/30" ref={scrollRef}>
-                        {messages.map((msg) => (
-                            <div key={msg.id} className={clsx("flex gap-2", msg.role === 'user' ? "flex-row-reverse" : "flex-row")}>
-                                <div className={clsx(
-                                    "w-7 h-7 rounded-lg flex items-center justify-center flex-shrink-0 shadow-xs border",
-                                    msg.role === 'user' ? "bg-white border-slate-200" : "bg-blue-50 border-blue-100 text-blue-600"
-                                )}>
-                                    {msg.role === 'user' ? <User size={14} className="text-slate-500" /> : <Bot size={14} />}
+                    <div className="flex-1 overflow-y-auto p-3 space-y-3 custom-scrollbar pb-32 bg-slate-50/30 flex-col" ref={scrollRef}>
+                        {messages.map((msg, idx) => {
+                            // 현재 메시지가 가장 마지막 '사용자' 메시지인지 확인
+                            const isLastUserMessage = msg.role === 'user' &&
+                                (idx === messages.length - 1 || (idx === messages.length - 2 && isTyping));
+
+                            return (
+                                <div
+                                    key={idx}
+                                    ref={isLastUserMessage ? lastUserMessageRef : null}
+                                    className={clsx(
+                                        "flex items-start gap-3 max-w-[90%] animate-in fade-in duration-500",
+                                        msg.role === 'user' ? "self-end flex-row-reverse" : "self-start"
+                                    )}
+                                >
+                                    <div className={clsx(
+                                        "w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 shadow-sm",
+                                        msg.role === 'user' ? "bg-slate-900 text-white" : "bg-indigo-100 text-indigo-600"
+                                    )}>
+                                        {msg.role === 'user' ? <User size={14} /> : <Bot size={14} />}
+                                    </div>
+
+                                    <div className={clsx(
+                                        "px-4 py-3 shadow-sm text-sm leading-relaxed whitespace-pre-wrap break-words",
+                                        msg.role === 'user'
+                                            ? "bg-slate-900 text-white rounded-2xl rounded-tr-none"
+                                            : "bg-white border border-slate-100 text-slate-700 rounded-2xl rounded-tl-none"
+                                    )}><div className="whitespace-pre-wrap">{msg.content}</div>
+                                        {msg.jobId && <ChatJobStatusIndicator jobId={msg.jobId} />}
+                                    </div>
                                 </div>
-                                <div className={clsx(
-                                    "max-w-[90%] p-2.5 rounded-xl text-[12px] leading-relaxed shadow-xs font-medium",
-                                    msg.role === 'user'
-                                        ? "bg-slate-800 text-white rounded-tr-none"
-                                        : "bg-white text-slate-700 rounded-tl-none border border-slate-100"
-                                )}>
-                                    <div className="whitespace-pre-wrap">{msg.content}</div>
-                                    {msg.jobId && <ChatJobStatusIndicator jobId={msg.jobId} />}
-                                </div>
-                            </div>
-                        ))}
+                            );
+                        })}
+                        {/*{isTyping && (<div className={"flex h-full"} ref={fillerRef}></div>)}*/}
 
                         {isTyping && (
                             <div className="flex gap-2 animate-in fade-in duration-300">
@@ -367,6 +395,7 @@ export function ChatInterface() {
                                 </div>
                             </div>
                         )}
+                        <div className={clsx("flex-none h-full  pointer-events-none", isTyping ? "min-h-[80%]" : "flex-fill")} />
                     </div>
 
                     <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-white via-white/95 to-transparent pt-10 z-20">
@@ -378,6 +407,7 @@ export function ChatInterface() {
                             isTyping={isTyping}
                             selectedAssetIds={selectedAssetIds}
                             isCentered={false}
+                            setActiveTab={setActiveTab}
                         />
                     </div>
                 </>

@@ -1,6 +1,5 @@
-import { Wand2, ArrowRight, ArrowDown, LayoutList, Code, GitFork, Database, LayoutTemplate } from 'lucide-react';
+import { Wand2, LayoutList, GitFork, Database, LayoutTemplate } from 'lucide-react';
 import clsx from 'clsx';
-import { useWorkflowStore } from '../../../store/useWorkflowStore';
 import type { JobStatus } from '../../../types/workflow';
 import type { MainView } from '../../../App'; // App.tsx에서 타입 임포트
 
@@ -15,20 +14,20 @@ interface WorkflowHeaderProps {
     // [New] Navigation Props
     activeView: MainView;
     onViewChange: (view: MainView) => void;
+    showAiChat: boolean;
+    toggleAiChat: () => void;
 }
 
 export function WorkflowHeader({
                                    jobStatus,
                                    initialTopic,
                                    isCompleted,
-                                   isInspectorOpen,
-                                   setInspectorOpen,
                                    onOpenSideOutliner,
                                    activeView,
-                                   onViewChange
+                                   onViewChange,
+                                    showAiChat,
+                                    toggleAiChat
                                }: WorkflowHeaderProps) {
-    const layoutDirection = useWorkflowStore((state) => state.layoutDirection);
-    const setLayoutDirection = useWorkflowStore((state) => state.setLayoutDirection);
 
     return (
         <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6 shadow-sm z-20">
@@ -76,36 +75,23 @@ export function WorkflowHeader({
             </div>
 
             {/* Right: Tools & Actions */}
-            <div className="flex items-center gap-3 w-[280px] justify-end">
-                {/* Progress Indicator (only visible when not done) */}
+            <div className={"flex gap-4"}>
+
                 {!isCompleted && (
-                    <div className="flex items-center gap-2 mr-2">
-                        <div className={clsx("w-2 h-2 rounded-full", jobStatus?.stageDurations?.PROCESS ? "bg-green-500" : "bg-blue-500 animate-pulse")} />
-                        <div className={clsx("w-2 h-2 rounded-full", jobStatus?.stageDurations?.DATA ? "bg-green-500" : (!jobStatus?.stageDurations?.PROCESS ? "bg-slate-200" : "bg-blue-500 animate-pulse"))} />
-                        <div className={clsx("w-2 h-2 rounded-full", jobStatus?.stageDurations?.FORM ? "bg-green-500" : (!jobStatus?.stageDurations?.DATA ? "bg-slate-200" : "bg-blue-500 animate-pulse"))} />
+                    <div className="flex items-center gap-3 justify-end">
+                        {/* Progress Indicator (only visible when not done) */}
+
+                        <div className="flex items-center gap-2 mr-2">
+                            <div className={clsx("w-2 h-2 rounded-full", jobStatus?.stageDurations?.PROCESS ? "bg-green-500" : "bg-blue-500 animate-pulse")} />
+                            <div className={clsx("w-2 h-2 rounded-full", jobStatus?.stageDurations?.DATA ? "bg-green-500" : (!jobStatus?.stageDurations?.PROCESS ? "bg-slate-200" : "bg-blue-500 animate-pulse"))} />
+                            <div className={clsx("w-2 h-2 rounded-full", jobStatus?.stageDurations?.FORM ? "bg-green-500" : (!jobStatus?.stageDurations?.DATA ? "bg-slate-200" : "bg-blue-500 animate-pulse"))} />
+                        </div>
                     </div>
                 )}
-
-                {/* Canvas Controls (Visible only in Canvas Mode) */}
-                {activeView === 'CANVAS' && (
-                    <>
-                        <div className="flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200 gap-1">
-                            <button onClick={() => setLayoutDirection('LR')} className={clsx("p-1.5 rounded-md transition-all", layoutDirection === 'LR' ? "bg-white text-blue-600 shadow-sm" : "text-slate-400 hover:text-slate-600")}>
-                                <ArrowRight size={14} />
-                            </button>
-                            <button onClick={() => setLayoutDirection('TB')} className={clsx("p-1.5 rounded-md transition-all", layoutDirection === 'TB' ? "bg-white text-blue-600 shadow-sm" : "text-slate-400 hover:text-slate-600")}>
-                                <ArrowDown size={14} />
-                            </button>
-                        </div>
-                        <div className="h-5 w-px bg-slate-300 mx-1" />
-                    </>
-                )}
-
-                <button onClick={() => setInspectorOpen(true)} className={clsx("flex items-center gap-2 text-xs font-bold px-3 py-1.5 border rounded-lg transition-colors", isInspectorOpen ? "bg-blue-50 text-blue-600 border-blue-200" : "text-slate-600 border-slate-200 hover:bg-slate-50")}>
-                    <Code size={14} /> JSON
-                </button>
-                <button onClick={() => window.location.reload()} className="text-xs font-bold text-slate-500 hover:text-blue-600 px-3 py-1.5 border border-slate-200 rounded-lg hover:bg-slate-50">
-                    New
+                <button className={clsx("flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-all duration-200 border-[1px] border-gray-200", showAiChat ? "text-blue-600 shadow-sm" : "")}
+                        onClick={toggleAiChat}
+                >
+                    AI Chat
                 </button>
             </div>
         </header>

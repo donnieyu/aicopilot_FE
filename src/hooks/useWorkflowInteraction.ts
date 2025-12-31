@@ -2,7 +2,6 @@ import { useState, useCallback } from 'react';
 import type { MouseEvent } from 'react';
 import type { Node } from 'reactflow';
 import { useWorkflowStore } from '../store/useWorkflowStore';
-import type { NodeSuggestion } from '../types/workflow';
 
 export function useWorkflowInteraction() {
     // Global Store State & Actions
@@ -11,7 +10,6 @@ export function useWorkflowInteraction() {
     const viewMode = useWorkflowStore((state) => state.viewMode);
     const setViewMode = useWorkflowStore((state) => state.setViewMode);
     const assetUrl = useWorkflowStore((state) => state.assetUrl);
-    const applySuggestion = useWorkflowStore((state) => state.applySuggestion);
 
     // Local UI State
     const [isInspectorOpen, setInspectorOpen] = useState(false);
@@ -20,9 +18,6 @@ export function useWorkflowInteraction() {
     // [Changed] 오른쪽 패널의 초기 상태를 닫힘(false)으로 변경
     const [isRightPanelOpen, setRightPanelOpen] = useState(false);
 
-    const [showSuggestionPanel, setShowSuggestionPanel] = useState(false);
-    const [suggestions, setSuggestions] = useState<NodeSuggestion[]>([]);
-
     // --- Handlers ---
 
     // 1. Node Click Handler
@@ -30,8 +25,6 @@ export function useWorkflowInteraction() {
         if (selectedNodeId === node.id) return;
 
         selectNode(node.id);
-        setShowSuggestionPanel(false);
-        setSuggestions([]);
 
         // 노드를 클릭하면 패널이 닫혀있을 경우 자동으로 엽니다.
         if (!isRightPanelOpen) {
@@ -42,22 +35,12 @@ export function useWorkflowInteraction() {
     // 2. Canvas Background Click Handler
     const handlePaneClick = useCallback(() => {
         selectNode(null);
-        setShowSuggestionPanel(false);
     }, [selectNode]);
 
     // 3. View Mode Toggle Handler
     const toggleViewMode = useCallback(() => {
         setViewMode(viewMode === 'DEFAULT' ? 'VERIFICATION' : 'DEFAULT');
     }, [viewMode, setViewMode]);
-
-    // 4. Suggestion Application Handler
-    const handleApplySuggestion = useCallback((suggestion: NodeSuggestion) => {
-        if (selectedNodeId) {
-            applySuggestion(suggestion, selectedNodeId);
-            setShowSuggestionPanel(false);
-            setSuggestions([]);
-        }
-    }, [selectedNodeId, applySuggestion]);
 
     return {
         // State
@@ -67,20 +50,15 @@ export function useWorkflowInteraction() {
         isInspectorOpen,
         isSideOutlinerOpen,
         isRightPanelOpen,
-        showSuggestionPanel,
-        suggestions,
 
         // Setters
         setInspectorOpen,
         setSideOutlinerOpen,
         setRightPanelOpen,
-        setShowSuggestionPanel,
-        setSuggestions,
 
         // Handlers
         handleNodeClick,
         handlePaneClick,
-        toggleViewMode,
-        handleApplySuggestion
+        toggleViewMode
     };
 }

@@ -7,6 +7,8 @@ import { JsonInspector } from './components/JsonInspector';
 import { MainWorkspace } from './features/workflow/components/MainWorkspace';
 import { CopilotPanel } from './features/workflow/components/copilot/CopilotPanel';
 
+export type MainView = 'CANVAS' | 'DATA' | 'FORM';
+
 /**
  * 메인 애플리케이션 컴포넌트
  * [수정 사항] 사용자의 요청에 따라 중복되는 AiStatusWidget 팝업을 제거하여
@@ -15,6 +17,7 @@ import { CopilotPanel } from './features/workflow/components/copilot/CopilotPane
 function App() {
     const [initialTopic, setInitialTopic] = useState('');
     const [inspectorOpen, setLocalInspectorOpen] = useState(false);
+    const [showAiChat, setShowAiChat] = useState(true);
 
     const {
         jobStatus,
@@ -76,13 +79,15 @@ function App() {
                         isSuggesting={isSuggesting}
                         handleTriggerSuggestion={() => {}}
                         showGeneratingOverlay={showLoading}
+                        toggleAiChat={() => setShowAiChat(!showAiChat)}
+                        showAiChat={showAiChat}
                     />
                 </div>
 
                 {/* 오른쪽 영역: AI 코파일럿 패널 */}
-                <div className="w-[420px] flex-shrink-0 h-full border-l border-slate-200 z-10 shadow-xl bg-white">
-                    <CopilotPanel />
-                </div>
+                {showAiChat && <div className="w-[420px] flex-shrink-0 h-full border-l border-slate-200 z-10 shadow-xl bg-white">
+                    <CopilotPanel/>
+                </div>}
             </main>
         </div>
     );

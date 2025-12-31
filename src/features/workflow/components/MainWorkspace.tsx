@@ -1,17 +1,14 @@
 import clsx from 'clsx';
-// [Fix] Relative paths for src/ directory
 import { useUiStore } from '../../../store/useUiStore';
 import { useWorkflowStore } from '../../../store/useWorkflowStore';
 import { useWorkflowInteraction } from '../../../hooks/useWorkflowInteraction';
 
-// [Fix] Component paths
 import { WorkflowHeader } from './WorkflowHeader';
 import { WorkflowCanvas } from '../WorkflowCanvas';
 import { DataDictionaryPanel } from './DataDictionaryPanel';
 import { FormListPanel } from './FormListPanel';
 import { AssetViewer } from './asset/AssetViewer';
 import { NodeConfigOverlay } from './NodeConfigOverlay';
-import { SuggestionPanel } from './SuggestionPanel';
 import { GeneratingOverlay } from './GeneratingOverlay';
 
 import { Split } from 'lucide-react';
@@ -22,43 +19,37 @@ interface MainWorkspaceProps {
     jobStatus: JobStatus | null | undefined;
     initialTopic: string;
     isCompleted: boolean;
-    // [Fix] Naming consistency: isInspectorOpen matches state logic
     isInspectorOpen: boolean;
     setInspectorOpen: (open: boolean) => void;
     isSuggesting: boolean;
     handleTriggerSuggestion: () => void;
-
-    // Loading state for the mini overlay
     showGeneratingOverlay: boolean;
+    toggleAiChat: () => void;
+    showAiChat: boolean;
 }
 
 /**
  * The Central Workspace area.
- * [Phase 3 Refinement] Added mini GeneratingOverlay to cover only the canvas area.
+ * [Phase 1.1] NodeConfigOverlay를 Canvas 내부 플로팅 요소로 배치하도록 유지 및 확인.
  */
 export function MainWorkspace({
                                   jobStatus,
                                   initialTopic,
                                   isCompleted,
-                                  isInspectorOpen, // Correctly destructured
-                                  setInspectorOpen, // Correctly destructured
-                                  isSuggesting,
-                                  showGeneratingOverlay
+                                  isInspectorOpen,
+                                  setInspectorOpen,
+                                  showGeneratingOverlay,
+                                    toggleAiChat,
+                                    showAiChat
                               }: MainWorkspaceProps) {
     const { mainView, setMainView } = useUiStore();
     const assetUrl = useWorkflowStore((state) => state.assetUrl);
 
-    // Reuse interaction logic (selecting nodes, toggling split view)
     const {
         selectedNodeId,
         viewMode,
         toggleViewMode,
-        handleNodeClick,
-        handlePaneClick,
-        showSuggestionPanel,
-        setShowSuggestionPanel,
-        suggestions,
-        handleApplySuggestion
+        handleNodeClick
     } = useWorkflowInteraction();
 
     const selectNode = useWorkflowStore((state) => state.selectNode);
@@ -70,28 +61,27 @@ export function MainWorkspace({
     return (
         <div className="flex flex-col h-full bg-slate-50 relative overflow-hidden">
 
-            {/* [User Suggestion Applied]
-               Mini Overlay: Now inside the MainWorkspace to cover only the canvas/tabs area.
-               It has a low background opacity (0.2) and a minimalist pill design.
-            */}
+            {/* Generating Overlay: 캔버스만 덮도록 상단에 배치 */}
             <GeneratingOverlay
                 isVisible={showGeneratingOverlay}
                 message={jobStatus?.message || "Analyzing requirements..."}
             />
 
-            {/* Top Workspace Header (Tabs) */}
+            {/* Top Workspace Header */}
             <WorkflowHeader
                 jobStatus={jobStatus}
                 initialTopic={initialTopic}
                 isCompleted={isCompleted}
-                isInspectorOpen={isInspectorOpen} // Corrected naming passed to header
+                isInspectorOpen={isInspectorOpen}
                 setInspectorOpen={setInspectorOpen}
                 onOpenSideOutliner={() => {}}
                 activeView={mainView}
                 onViewChange={setMainView}
+                showAiChat={showAiChat}
+                toggleAiChat={toggleAiChat}
             />
 
-            {/* Content Area with Split View Support */}
+            {/* Content Area */}
             <div className="flex-1 relative overflow-hidden flex">
 
                 {/* Left Split Panel (Asset Viewer) */}
@@ -101,13 +91,13 @@ export function MainWorkspace({
                     </div>
                 )}
 
-                {/* Main View Container (Canvas or Tables) */}
+                {/* Main View Container */}
                 <div className="flex-1 relative h-full transition-all duration-300 flex flex-col">
 
                     {/* View 1: Process Map (Canvas) */}
                     <div className={clsx("w-full h-full absolute inset-0 transition-opacity duration-500", mainView === 'CANVAS' ? "opacity-100 z-10" : "opacity-0 pointer-events-none")}>
 
-                        {/* Toggle button to show/hide source asset */}
+                        {/* Split View Toggle */}
                         {assetUrl && (
                             <div className="absolute top-4 left-4 z-20">
                                 <PanelToggleButton
@@ -130,24 +120,13 @@ export function MainWorkspace({
                                     <p className="text-sm font-medium">Use AI Chat to generate your first process.</p>
                                 </div>
                             )}
-                            {/* Deselect on background click */}
-                            <div className="absolute inset-0 -z-10" onClick={handlePaneClick} aria-hidden="true" />
                         </div>
 
-                        {/* Floating Panels inside Canvas */}
+                        {/* [Phase 1.1] Floating Overlay: Canvas 영역 내부에 떠 있게 배치 */}
                         {selectedNodeId && (
                             <NodeConfigOverlay
                                 nodeId={selectedNodeId}
                                 onClose={() => selectNode(null)}
-                            />
-                        )}
-
-                        {showSuggestionPanel && (
-                            <SuggestionPanel
-                                suggestions={suggestions}
-                                isLoading={isSuggesting}
-                                onApply={handleApplySuggestion}
-                                onClose={() => setShowSuggestionPanel(false)}
                             />
                         )}
                     </div>

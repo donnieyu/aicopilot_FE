@@ -11,7 +11,7 @@ export function CopilotPanel() {
     return (
         <div className="h-full flex flex-col bg-white border-l border-slate-200 shadow-xl relative z-40">
             {/* Header Tabs */}
-            <div className="flex border-b border-slate-200">
+            <div className="flex border-b border-slate-200 h-16">
                 <button
                     onClick={() => setActiveTab('CHAT')}
                     className={clsx(
@@ -41,7 +41,7 @@ export function CopilotPanel() {
             {/* Content Area */}
             <div className="flex-1 overflow-hidden relative">
                 <div className={clsx("absolute inset-0 transition-opacity duration-300", activeTab === 'CHAT' ? "opacity-100 z-10" : "opacity-0 pointer-events-none")}>
-                    <ChatInterface />
+                    <ChatInterface setActiveTab={setActiveTab}/>
                 </div>
                 <div className={clsx("absolute inset-0 transition-opacity duration-300", activeTab === 'KNOWLEDGE' ? "opacity-100 z-10" : "opacity-0 pointer-events-none")}>
                     <AssetManager />
