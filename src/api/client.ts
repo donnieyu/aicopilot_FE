@@ -4,7 +4,7 @@ const baseURL = import.meta.env.VITE_API_BASE_URL;
 
 // 기본 Axios 인스턴스 설정
 export const client = axios.create({
-    baseURL: baseURL,
+    baseURL: baseURL + "/api",
     headers: {
         'Content-Type': 'application/json',
     },
